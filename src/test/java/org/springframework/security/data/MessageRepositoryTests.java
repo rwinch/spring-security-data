@@ -103,7 +103,7 @@ public class MessageRepositoryTests {
         message.setText("Hi");
 
         JpaRepositoryFactory factory = new JpaRepositoryFactory(em);
-		AclQueryAugmentor augmentor = new AclQueryAugmentor();
+        AclQueryAugmentor augmentor = new AclQueryAugmentor();
 
         List<QueryAugmentor<? extends QueryContext<?>, ? extends QueryContext<?>, ? extends UpdateContext<?>>> augmentors = new ArrayList<QueryAugmentor<? extends QueryContext<?>, ? extends QueryContext<?>, ? extends UpdateContext<?>>>();
         augmentors.add(augmentor);
@@ -118,10 +118,13 @@ public class MessageRepositoryTests {
     public void basicSaveAndDelete() {
 
         message = repository.save(message);
-		repository.flush();
+        repository.flush();
 
         assertThat(repository.findAll()).contains(message);
         assertThat(noAclRepository.findAll()).contains(message);
+
+        message = repository.save(message);
+        repository.flush();
     }
 
 
