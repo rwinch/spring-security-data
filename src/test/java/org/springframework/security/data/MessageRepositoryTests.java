@@ -15,18 +15,22 @@
  */
 package org.springframework.security.data;
 
+import static org.fest.assertions.Assertions.assertThat;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.sql.DataSource;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.jpa.repository.augment.JpaSoftDeleteQueryAugmentor;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
-import org.springframework.data.repository.CrudRepository;
-import org.springframework.data.repository.SoftDelete;
 import org.springframework.data.repository.augment.QueryAugmentor;
 import org.springframework.data.repository.augment.QueryContext;
 import org.springframework.data.repository.augment.UpdateContext;
@@ -36,19 +40,14 @@ import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.Database;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
-
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
-import javax.sql.DataSource;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-
-import static org.fest.assertions.Assertions.assertThat;
 
 /**
  * @author Rob Winch
@@ -94,7 +93,7 @@ public class MessageRepositoryTests {
     EntityManager em;
 
     MessageRepository noAclRepository;
-    MessageRepository repository;
+    MessageRepository aclRepository;
     Message message;
 
     @Before
@@ -110,25 +109,73 @@ public class MessageRepositoryTests {
 
         factory.setQueryAugmentors(augmentors);
 
-        noAclRepository = factory.getRepository(NoAclMessageRepository.class);
-        repository = factory.getRepository(MessageRepository.class);
+        noAclRepository = factory.getRepository(MessageRepository.class);
+        aclRepository = factory.getRepository(AclMessageRepository.class);
+    }
+
+    @After
+    public void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
-    public void basicSaveAndDelete() {
+    public void ownerCanPerformAllOperations() {
+        withUser("user");
 
-        message = repository.save(message);
-        repository.flush();
+        message = aclRepository.save(message);
+        aclRepository.flush();
 
-        assertThat(repository.findAll()).contains(message);
+        assertThat(aclRepository.findAll()).contains(message);
+
+        message.setText("Goodbye");
+        message = aclRepository.save(message);
+        aclRepository.flush();
+
+        message = aclRepository.getOne(message.getId());
+
+        assertThat(message.getText()).isEqualTo("Goodbye");
+
+        aclRepository.delete(message.getId());
+
+        assertThat(aclRepository.findOne(message.getId())).isNull();
+    }
+
+    @Test
+    public void nonOwnerCannotPerformAnyOperations() {
+        withUser("user");
+
+        message = aclRepository.save(message);
+        aclRepository.flush();
+
+        withUser("user2");
+
+        // acl prevents user2 from finding the Message
+        assertThat(aclRepository.findAll()).isEmpty();
+
+        // without acl we still find the Message
         assertThat(noAclRepository.findAll()).contains(message);
 
-        message = repository.save(message);
-        repository.flush();
+        // acl prevents updating the Message (could accept an Exception here)
+        message.setText("Goodbye");
+        message = aclRepository.save(message);
+        aclRepository.flush();
+
+        // verify the Message is not updated
+        message = noAclRepository.getOne(message.getId());
+        assertThat(message.getText()).isEqualTo("Hello");
+
+        // Message cannot be deleted (could accept an Exception here)
+        aclRepository.delete(message.getId());
+        aclRepository.flush();
+
+        // Message still exists
+        assertThat(noAclRepository.findOne(message.getId())).isNotNull();
     }
 
 
-    interface NoAclMessageRepository extends MessageRepository {
-
+    public void withUser(String username) {
+        List<GrantedAuthority> authorities = AuthorityUtils.createAuthorityList("ROLE_USER");
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(username, "password", authorities);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }
