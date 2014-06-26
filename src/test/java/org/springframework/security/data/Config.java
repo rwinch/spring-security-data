@@ -92,6 +92,7 @@ class Config {
 				Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 				ctx.setVariable("authentication", authentication);
 				ctx.setVariable("principal", authentication == null ? null : authentication.getPrincipal());
+				ctx.setRootObject(new SecurityExpressionRoot(authentication) {});
 				return ctx;
 			}
 		};

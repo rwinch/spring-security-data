@@ -13,7 +13,7 @@ import java.util.List;
 @Repository
 public interface SecurityMessageRepository extends MessageRepository {
 	@Override
-	@Query("select m from Message m where m.to.id = ?#{ #principal?.id }")
+	@Query("select m from Message m where m.to.id = ?#{ principal?.id }")
 	List<Message> findAll();
 
 	@PreAuthorize("#m?.to?.id == principal?.id")
