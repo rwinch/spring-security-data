@@ -15,11 +15,10 @@
  */
 package org.springframework.security.data;
 
+import org.springframework.security.core.userdetails.User;
+
 import javax.annotation.Generated;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import javax.persistence.*;
 
 /**
  * @author Rob Winch
@@ -32,7 +31,18 @@ public class Message {
 
     private String text;
 
-    public Long getId() {
+	@OneToOne
+	private MyUser to;
+
+	public MyUser getTo() {
+		return to;
+	}
+
+	public void setTo(MyUser to) {
+		this.to = to;
+	}
+
+	public Long getId() {
         return id;
     }
 

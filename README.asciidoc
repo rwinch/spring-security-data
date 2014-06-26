@@ -1,0 +1,7 @@
+Used for prototyping Spring Security / Spring Data integration. This branch focuses on SpEL support. Here are a few highlights:
+
+* https://github.com/rwinch/spring-security-data/blob/spel/src/main/java/org/springframework/security/data/SecurityMessageRepository.java[Secured Repository]
+
+* https://github.com/rwinch/spring-security-data/blob/spel/src/test/java/org/springframework/security/data/MessageRepositoryTests.java[Demo Usage]
+
+In the long term we want to easily apply Spring Security access control without the need for SpEL, but for now this is an easy win. See Spring Data / Spring integration started https://jira.spring.io/browse/SEC-2409 

@@ -16,6 +16,7 @@
 package org.springframework.security.data;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static org.fest.assertions.Fail.fail;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,154 +29,151 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
-import org.springframework.data.repository.augment.QueryAugmentor;
-import org.springframework.data.repository.augment.QueryContext;
-import org.springframework.data.repository.augment.UpdateContext;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.orm.jpa.JpaTransactionManager;
-import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.vendor.Database;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * @author Rob Winch
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = MessageRepositoryTests.Config.class)
+@ContextConfiguration(classes = Config.class)
 @Transactional
 public class MessageRepositoryTests {
-    @Configuration
-//    @ComponentScan
-//    @EnableJpaRepositories
-    static class Config {
-        @Bean
-        public DataSource dataSource() {
-            EmbeddedDatabaseBuilder builder = new EmbeddedDatabaseBuilder();
-            return builder.setType(EmbeddedDatabaseType.H2).build();
-        }
 
-        @Bean
-        public LocalContainerEntityManagerFactoryBean entityManagerFactory() {
-            HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
-            vendorAdapter.setDatabase(Database.H2);
-            vendorAdapter.setGenerateDdl(true);
-            vendorAdapter.setShowSql(true);
+	@PersistenceContext
+	EntityManager em;
 
-            LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
-            factory.setJpaVendorAdapter(vendorAdapter);
-            factory.setPackagesToScan(Message.class.getPackage().getName());
-            factory.setDataSource(dataSource());
+	@Autowired
+	MessageRepository messageRepository;
+	@Autowired
+	SecurityMessageRepository securityMessageRepository;
+	@Autowired
+	UserRepository userRepository;
+	Message message;
 
-            return factory;
-        }
+	@Before
+	public void setUp() {
+		message = new Message();
+		message.setText("Hi");
 
-        @Bean
-        public PlatformTransactionManager transactionManager() {
-            JpaTransactionManager txManager = new JpaTransactionManager();
-            txManager.setEntityManagerFactory(entityManagerFactory().getObject());
-            return txManager;
-        }
-    }
+		userRepository.save(createUser("user"));
+		userRepository.save(createUser("user2"));
 
-    @PersistenceContext
-    EntityManager em;
+		userRepository.flush();
 
-    MessageRepository noAclRepository;
-    MessageRepository aclRepository;
-    Message message;
+		withUser("user");
+	}
 
-    @Before
-    public void setUp() {
-        message = new Message();
-        message.setText("Hi");
+	@After
+	public void teardown() {
+		SecurityContextHolder.clearContext();
+	}
 
-        JpaRepositoryFactory factory = new JpaRepositoryFactory(em);
-        AclQueryAugmentor augmentor = new AclQueryAugmentor();
+	@Test
+	public void ownerCanPerformAllOperations() {
+		message.setTo(getUser());
+		message = securityMessageRepository.save(message);
+		securityMessageRepository.flush();
 
-        List<QueryAugmentor<? extends QueryContext<?>, ? extends QueryContext<?>, ? extends UpdateContext<?>>> augmentors = new ArrayList<QueryAugmentor<? extends QueryContext<?>, ? extends QueryContext<?>, ? extends UpdateContext<?>>>();
-        augmentors.add(augmentor);
+		assertThat(securityMessageRepository.findAll()).contains(message);
 
-        factory.setQueryAugmentors(augmentors);
+		message.setText("Goodbye");
+		message = messageRepository.save(message);
+		securityMessageRepository.flush();
 
-        noAclRepository = factory.getRepository(MessageRepository.class);
-        aclRepository = factory.getRepository(AclMessageRepository.class);
-    }
+		message = securityMessageRepository.getOne(message.getId());
 
-    @After
-    public void tearDown() {
-        SecurityContextHolder.clearContext();
-    }
+		assertThat(message.getText()).isEqualTo("Goodbye");
 
-    @Test
-    public void ownerCanPerformAllOperations() {
-        withUser("user");
+		securityMessageRepository.delete(message.getId());
 
-        message = aclRepository.save(message);
-        aclRepository.flush();
+		assertThat(securityMessageRepository.findOne(message.getId())).isNull();
+	}
 
-        assertThat(aclRepository.findAll()).contains(message);
+	@Test
+	 public void nonOwnerCannotPerformAnyOperations() {
+		withUser("user");
 
-        message.setText("Goodbye");
-        message = aclRepository.save(message);
-        aclRepository.flush();
+		message.setTo(getUser());
+		message = securityMessageRepository.save(message);
+		messageRepository.flush();
 
-        message = aclRepository.getOne(message.getId());
+		withUser("user2");
 
-        assertThat(message.getText()).isEqualTo("Goodbye");
+		// acl prevents user2 from finding the Message
+		assertThat(securityMessageRepository.findAll()).isEmpty();
 
-        aclRepository.delete(message.getId());
+		// without acl we still find the Message
+		assertThat(messageRepository.findAll()).contains(message);
 
-        assertThat(aclRepository.findOne(message.getId())).isNull();
-    }
+		// acl prevents updating the Message (could accept an Exception here)
+		message.setText("Goodbye");
+		try {
+			message = securityMessageRepository.save(message);
+			fail("Expected Error");
+		} catch(AccessDeniedException success) {}
 
-    @Test
-    public void nonOwnerCannotPerformAnyOperations() {
-        withUser("user");
+		// verify the Message is not updated
+		message = messageRepository.findOne(message.getId());
+		assertThat(message.getText()).isEqualTo("Hi");
 
-        message = aclRepository.save(message);
-        aclRepository.flush();
+		// Message cannot be deleted (could accept an Exception here)
+		try {
+			securityMessageRepository.delete(message);
+			securityMessageRepository.flush();
+			fail("Expected Error");
+		} catch (Exception success) {}
 
-        withUser("user2");
+		// Message still exists
+		assertThat(messageRepository.findOne(message.getId())).isNotNull();
+	}
 
-        // acl prevents user2 from finding the Message
-        assertThat(aclRepository.findAll()).isEmpty();
+	@Test
+	public void detachedTest() {
+		withUser("user");
 
-        // without acl we still find the Message
-        assertThat(noAclRepository.findAll()).contains(message);
-
-        // acl prevents updating the Message (could accept an Exception here)
-        message.setText("Goodbye");
-        message = aclRepository.save(message);
-        aclRepository.flush();
-
-        // verify the Message is not updated
-        message = noAclRepository.getOne(message.getId());
-        assertThat(message.getText()).isEqualTo("Hello");
-
-        // Message cannot be deleted (could accept an Exception here)
-        aclRepository.delete(message.getId());
-        aclRepository.flush();
-
-        // Message still exists
-        assertThat(noAclRepository.findOne(message.getId())).isNotNull();
-    }
+		message.setTo(getUser());
+		message = securityMessageRepository.save(message);
+		securityMessageRepository.flush();
 
 
-    public void withUser(String username) {
-        List<GrantedAuthority> authorities = AuthorityUtils.createAuthorityList("ROLE_USER");
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(username, "password", authorities);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-    }
+		assertThat(securityMessageRepository.findAll()).contains(message);
+
+		withUser("user2");
+
+		message = securityMessageRepository.findOne(message.getId());
+		message.setText("Goodbye");
+		securityMessageRepository.flush();
+
+		message = securityMessageRepository.findOne(message.getId());
+
+		assertThat(message.getText()).isEqualTo("Hi");
+	}
+
+	public static MyUser getUser() {
+		return (MyUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+	}
+
+	public void withUser(String username) {
+		List<GrantedAuthority> authorities = AuthorityUtils.createAuthorityList("ROLE_USER");
+		MyUser user = userRepository.findByEmail(username);
+		UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, user.getPassword(), authorities);
+		SecurityContextHolder.getContext().setAuthentication(authentication);
+	}
+
+	public static MyUser createUser(String username) {
+		MyUser user = new MyUser();
+		user.setEmail(username);
+		user.setPassword("password");
+		user.setFirstName(username);
+		user.setLastName("Last");
+		return user;
+	}
 }
