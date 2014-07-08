@@ -12,7 +12,7 @@ repositories {
 
 dependencies {
     compile "org.hibernate:hibernate-entitymanager:$hibernateVerson",
-           'org.springframework.data:spring-data-jpa:1.7.0.DATAJPA-SECURITY-SNAPSHOT',
+           'org.springframework.data:spring-data-jpa:1.7.0.DATAJPA-564-SNAPSHOT',
             "org.springframework.security:spring-security-core:$springSecurityVersion",
             "org.springframework.security:spring-security-config:$springSecurityVersion",
            "org.springframework.security:spring-security-acl:$springSecurityVersion"

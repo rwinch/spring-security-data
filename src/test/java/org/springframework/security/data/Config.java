@@ -20,10 +20,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.data.jpa.repository.support.DetachingJpaResultPostProcessor;
-import org.springframework.data.jpa.repository.support.ExpressionEvaluationContextProvider;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactoryBean;
 import org.springframework.data.repository.Repository;
+import org.springframework.data.repository.query.ExtensionAwareEvaluationContextProvider;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
@@ -36,10 +35,12 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.data.repository.query.spi.SecurityEvaluationContextExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
 import java.io.Serializable;
+import java.util.Arrays;
 
 /**
  * @author Rob Winch
@@ -55,8 +56,7 @@ class Config {
 
 		@Override
 		public void afterPropertiesSet() {
-
-			setJpaResultPostProcessor(new DetachingJpaResultPostProcessor(entityManager));
+			setEvaluationContextProvider(new ExtensionAwareEvaluationContextProvider(Arrays.asList(evaluationContextExtension())));
 
 			super.afterPropertiesSet();
 		}
@@ -84,18 +84,8 @@ class Config {
 	}
 
 	@Bean
-	public ExpressionEvaluationContextProvider expressionEvaluationContextProvider() {
-		return new ExpressionEvaluationContextProvider() {
-			@Override
-			public StandardEvaluationContext getEvaluationContext() {
-				StandardEvaluationContext ctx = new StandardEvaluationContext();
-				Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-				ctx.setVariable("authentication", authentication);
-				ctx.setVariable("principal", authentication == null ? null : authentication.getPrincipal());
-				ctx.setRootObject(new SecurityExpressionRoot(authentication) {});
-				return ctx;
-			}
-		};
+	public static SecurityEvaluationContextExtension evaluationContextExtension() {
+		return new SecurityEvaluationContextExtension();
 	}
 
 	@Bean
