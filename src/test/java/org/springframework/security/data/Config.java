@@ -48,19 +48,9 @@ import java.util.Arrays;
 
 @Configuration
 @ComponentScan
-@EnableJpaRepositories(repositoryFactoryBeanClass = Config.CustomJpaRepositoryFactoryBean.class)
+@EnableJpaRepositories
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 class Config {
-	public static class CustomJpaRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends Serializable> extends
-			JpaRepositoryFactoryBean<T, S, ID> {
-
-		@Override
-		public void afterPropertiesSet() {
-			setEvaluationContextProvider(new ExtensionAwareEvaluationContextProvider(Arrays.asList(evaluationContextExtension())));
-
-			super.afterPropertiesSet();
-		}
-	}
 
 	@Bean
 	public DataSource dataSource() {
