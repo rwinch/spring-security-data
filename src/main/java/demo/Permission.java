@@ -26,7 +26,7 @@ import javax.persistence.Id;
  */
 @Entity
 public class Permission {
-	private Serializable domainType;
+	private String domainType;
 
 	@GeneratedValue
 	@Id
@@ -34,7 +34,7 @@ public class Permission {
 
 	private String permission;
 
-	private Serializable domainId;
+	private String domainId;
 
 	private String username;
 
@@ -46,11 +46,11 @@ public class Permission {
 		this.username = username;
 	}
 
-	public Serializable getDomainType() {
+	public String getDomainType() {
 		return domainType;
 	}
 
-	public void setDomainType(Serializable domainType) {
+	public void setDomainType(String domainType) {
 		this.domainType = domainType;
 	}
 
@@ -70,11 +70,11 @@ public class Permission {
 		this.permission = permission;
 	}
 
-	public Serializable getDomainId() {
+	public String getDomainId() {
 		return domainId;
 	}
 
-	public void setDomainId(Serializable domainId) {
+	public void setDomainId(String domainId) {
 		this.domainId = domainId;
 	}
 }
