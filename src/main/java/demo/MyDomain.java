@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,15 +13,29 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.springframework.security.data;
+package demo;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.repository.CrudRepository;
-import org.springframework.stereotype.Repository;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
 
 /**
  * @author Rob Winch
  */
-@Repository
-public interface MessageRepository extends JpaRepository<Message,Long> {
+@Entity
+public class MyDomain {
+
+	@GeneratedValue
+	@Id
+	private Long id;
+
+	private String attribute;
+
+	public Long getId() {
+		return id;
+	}
+
+	public void setId(Long id) {
+		this.id = id;
+	}
 }
