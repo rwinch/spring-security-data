@@ -10,6 +10,6 @@ import org.springframework.data.repository.PagingAndSortingRepository;
  */
 public interface MyDomainRepository extends PagingAndSortingRepository<MyDomain, Long> {
 
-	@Query("select d from MyDomain d")
+	@Query("select d from MyDomain d, Permission p where p.domainType = 'demo.MyDomain' AND p.domainId = d.id AND p.permission = 'read'")
 	Page<MyDomain> findAll(Pageable pageable);
 }
