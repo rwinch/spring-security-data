@@ -33,11 +33,17 @@ public class AclQueryAugmentor
 	@Override
 	public JpaCriteriaQueryContext<?, ?> augmentQuery(JpaCriteriaQueryContext<?, ?> context,
 			MethodMetadata methodMetadata) {
+		
+		augmentPermission(context, "read");
 
+		return context;
+	}
+
+	private void augmentPermission(JpaCriteriaQueryContext<?, ?> context, String permissionType) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
 		if (authentication == null) {
-			return context;
+			return;
 		}
 
 		CriteriaQuery<?> criteriaQuery = context.getQuery();
@@ -50,7 +56,7 @@ public class AclQueryAugmentor
 		Root<Permission> permission = criteriaQuery.from(Permission.class);
 
 		// Adds "p.permission = 'read'"
-		Predicate hasReadPermission = builder.equal(permission.get("permission"), "read");
+		Predicate hasReadPermission = builder.equal(permission.get("permission"), permissionType);
 
 		SingularAttribute<?, Object> idAttribute = root.getModel().getId(Object.class);
 		String idName = idAttribute.getName();
@@ -66,13 +72,13 @@ public class AclQueryAugmentor
 
 		Predicate restriction = criteriaQuery.getRestriction();
 		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
-
-		return context;
+		
 	}
 
 	@Override
-	public JpaUpdateContext<?> augmentUpdate(JpaUpdateContext<?> update, MethodMetadata methodMetadata) {
-		System.out.println("augmentUpdate");
-		return update;
+	public JpaUpdateContext<?> augmentUpdate(JpaUpdateContext<?> context, MethodMetadata methodMetadata) {
+		// FIXME Would be nice if I could do this by simply changing augmentPermission first argument type to common interface or class!
+//		augmentPermission(context, "write");
+		return context;
 	}
 }
