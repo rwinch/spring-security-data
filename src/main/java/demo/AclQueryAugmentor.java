@@ -34,38 +34,38 @@ public class AclQueryAugmentor
 	public JpaCriteriaQueryContext<?, ?> augmentQuery(JpaCriteriaQueryContext<?, ?> context,
 			MethodMetadata methodMetadata) {
 
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-		if (authentication == null) {
-			return context;
-		}
-
-		CriteriaQuery<?> criteriaQuery = context.getQuery();
-		CriteriaBuilder builder = context.getCriteriaBuilder();
-
-		// Assume "select d from Domain d where …"
-		Root<?> root = context.getRoot();
-
-		// Adds "from Permission p"
-		Root<Permission> permission = criteriaQuery.from(Permission.class);
-
-		// Adds "p.permission = 'read'"
-		Predicate hasReadPermission = builder.equal(permission.get("permission"), "read");
-
-		SingularAttribute<?, Object> idAttribute = root.getModel().getId(Object.class);
-		String idName = idAttribute.getName();
-		Predicate isDomainPermission = builder.equal(root.get(idName), permission.get("domainId"));
-		
-		Predicate isDomainType = builder.equal(permission.get("domainType"), root.getJavaType().getName());
-
-		// Adds "p.username = $authentication.name"
-		Predicate isUserPermission = builder.equal(permission.get("username"), authentication.getName());
-
-		// Concatenates atomic predicates
-		Predicate predicate = builder.and(hasReadPermission, isDomainPermission, isUserPermission, isDomainType);
-
-		Predicate restriction = criteriaQuery.getRestriction();
-		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
+//		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+//
+//		if (authentication == null) {
+//			return context;
+//		}
+//
+//		CriteriaQuery<?> criteriaQuery = context.getQuery();
+//		CriteriaBuilder builder = context.getCriteriaBuilder();
+//
+//		// Assume "select d from Domain d where …"
+//		Root<?> root = context.getRoot();
+//
+//		// Adds "from Permission p"
+//		Root<Permission> permission = criteriaQuery.from(Permission.class);
+//
+//		// Adds "p.permission = 'read'"
+//		Predicate hasReadPermission = builder.equal(permission.get("permission"), "read");
+//
+//		SingularAttribute<?, Object> idAttribute = root.getModel().getId(Object.class);
+//		String idName = idAttribute.getName();
+//		Predicate isDomainPermission = builder.equal(root.get(idName), permission.get("domainId"));
+//		
+//		Predicate isDomainType = builder.equal(permission.get("domainType"), root.getJavaType().getName());
+//
+//		// Adds "p.username = $authentication.name"
+//		Predicate isUserPermission = builder.equal(permission.get("username"), authentication.getName());
+//
+//		// Concatenates atomic predicates
+//		Predicate predicate = builder.and(hasReadPermission, isDomainPermission, isUserPermission, isDomainType);
+//
+//		Predicate restriction = criteriaQuery.getRestriction();
+//		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
 
 		return context;
 	}
