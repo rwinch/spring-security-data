@@ -4,8 +4,10 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
+import javax.persistence.metamodel.SingularAttribute;
 
 import org.springframework.data.jpa.repository.support.JpaCriteriaQueryContext;
+import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
 import org.springframework.data.jpa.repository.support.JpaQueryContext;
 import org.springframework.data.jpa.repository.support.JpaUpdateContext;
 import org.springframework.data.repository.augment.MethodMetadata;
@@ -50,14 +52,17 @@ public class AclQueryAugmentor
 		// Adds "p.permission = 'read'"
 		Predicate hasReadPermission = builder.equal(permission.get("permission"), "read");
 
-		// Adds "p.domainId = d.id" - TODO: determine identifier property dynamically
-		Predicate isDomainPermission = builder.equal(root.get("id"), permission.get("domainId"));
+		SingularAttribute<?, Object> idAttribute = root.getModel().getId(Object.class);
+		String idName = idAttribute.getName();
+		Predicate isDomainPermission = builder.equal(root.get(idName), permission.get("domainId"));
+		
+		Predicate isDomainType = builder.equal(permission.get("domainType"), root.getJavaType().getName());
 
 		// Adds "p.username = $authentication.name"
 		Predicate isUserPermission = builder.equal(permission.get("username"), authentication.getName());
 
 		// Concatenates atomic predicates
-		Predicate predicate = builder.and(hasReadPermission, isDomainPermission, isUserPermission);
+		Predicate predicate = builder.and(hasReadPermission, isDomainPermission, isUserPermission, isDomainType);
 
 		Predicate restriction = criteriaQuery.getRestriction();
 		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
