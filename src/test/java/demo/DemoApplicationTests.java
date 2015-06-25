@@ -52,6 +52,12 @@ public class DemoApplicationTests {
 		assertThat(results.getTotalElements()).isEqualTo(2);
 	}
 
+	@WithMockUser("rob")
+	@Test
+	public void findOneSuccess() {
+		assertThat(repository.findOne(1L)).isNotNull();
+	}
+
 
 	@WithMockUser("luke")
 	@Test
