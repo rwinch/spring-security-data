@@ -41,7 +41,7 @@ public class DemoApplicationTests {
 		repository = createAugmentedFactory(MyDomainRepository.class, new AclQueryAugmentor<Object>());
 	}
 	
-	// TODO Save
+	// save(MyDomain)
 	
 	@WithMockUser("rob")
 	@Test
@@ -80,6 +80,10 @@ public class DemoApplicationTests {
 		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
 
+	// TODO save (create new, then update, then delete)
+
+	// saveAndFlush(MyDomain)
+
 	@WithMockUser("rob")
 	@Test
 	public void saveAndFlushUpdateNoPermission() {
@@ -91,8 +95,20 @@ public class DemoApplicationTests {
 
 		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
+	
+	// save(Iterable<MyDomain>)
 
-	// TODO save (create new, then update, then delete)
+	@WithMockUser("rob")
+	@Test
+	public void saveIterableNoPermission() {
+		MyDomain toUpdate = repository.findOne(2L);
+
+		toUpdate.setAttribute("saveUpdateNoPermission");
+
+		repository.save(Arrays.asList(toUpdate));
+
+		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+	}
 
 	// findOne(Long)
 	
