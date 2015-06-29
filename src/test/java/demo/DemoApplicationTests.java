@@ -68,6 +68,32 @@ public class DemoApplicationTests {
 		assertThat(unaugmentedRepository.findOne(saved.getId())).isNotNull();
 	}
 
+	@WithMockUser("rob")
+	@Test
+	public void saveUpdateNoPermission() {
+		MyDomain toUpdate = repository.findOne(2L);
+
+		toUpdate.setAttribute("saveUpdateNoPermission");
+
+		repository.save(toUpdate);
+
+		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+	}
+
+	@WithMockUser("rob")
+	@Test
+	public void saveAndFlushUpdateNoPermission() {
+		MyDomain toUpdate = repository.findOne(2L);
+
+		toUpdate.setAttribute("saveUpdateNoPermission");
+
+		repository.saveAndFlush(toUpdate);
+
+		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+	}
+
+	// TODO save (create new, then update, then delete)
+
 	// findOne(Long)
 	
 	@WithMockUser("rob")
