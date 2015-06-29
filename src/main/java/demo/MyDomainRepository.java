@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 /**
  * @author Rob Winch
  */
+@Acled
 public interface MyDomainRepository extends JpaRepository<MyDomain, Long> {
 
 	// Demo Bug in Spring Data

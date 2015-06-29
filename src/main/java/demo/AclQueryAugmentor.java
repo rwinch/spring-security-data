@@ -7,47 +7,52 @@ import javax.persistence.criteria.Root;
 import javax.persistence.metamodel.SingularAttribute;
 
 import org.springframework.data.jpa.repository.support.JpaCriteriaQueryContext;
-import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
+import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.JpaQueryContext;
 import org.springframework.data.jpa.repository.support.JpaUpdateContext;
-import org.springframework.data.repository.augment.MethodMetadata;
-import org.springframework.data.repository.augment.QueryAugmentor;
-import org.springframework.data.repository.augment.QueryContext;
-import org.springframework.data.repository.core.EntityMetadata;
+import org.springframework.data.jpa.repository.support.QueryExecutor;
+import org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor;
+import org.springframework.data.repository.augment.QueryContext.QueryMode;
+import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-public class AclQueryAugmentor
-		implements QueryAugmentor<JpaCriteriaQueryContext<?, ?>, JpaQueryContext, JpaUpdateContext<?>> {
+public class AclQueryAugmentor<T> extends
+		AnnotationBasedQueryAugmentor<Acled, JpaCriteriaQueryContext<?, ?>, JpaQueryContext, JpaUpdateContext<T, ?>> {
 
+	/* 
+	 * (non-Javadoc)
+	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareQuery(org.springframework.data.repository.augment.QueryContext, java.lang.annotation.Annotation)
+	 */
 	@Override
-	public boolean supports(MethodMetadata method, QueryContext.QueryMode queryMode, EntityMetadata<?> entityMetadata) {
-		return true;
+	protected JpaCriteriaQueryContext<?, ?> prepareQuery(JpaCriteriaQueryContext<?, ?> context, Acled annotation) {
+		return augmentPermission(context);
 	}
 
+	/* 
+	 * (non-Javadoc)
+	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareUpdate(org.springframework.data.repository.augment.UpdateContext, java.lang.annotation.Annotation)
+	 */
 	@Override
-	public JpaQueryContext augmentNativeQuery(JpaQueryContext query, MethodMetadata methodMetadata) {
-		return query;
+	protected JpaUpdateContext<T, ?> prepareUpdate(JpaUpdateContext<T, ?> context, Acled annotation) {
+
+		QueryMode mode = context.getMode().equals(UpdateMode.DELETE) ? QueryMode.FOR_DELETE : QueryMode.FOR_UPDATE;
+		QueryExecutor<T, ?> queryExecutor = context.getQueryExecutor();
+
+		return queryExecutor.executeCountByIdFor(context.getEntity(), mode) == 0L ? null : context;
 	}
 
-	@Override
-	public JpaCriteriaQueryContext<?, ?> augmentQuery(JpaCriteriaQueryContext<?, ?> context,
-			MethodMetadata methodMetadata) {
-		
-		augmentPermission(context, "read");
+	private static JpaCriteriaQueryContext<?, ?> augmentPermission(JpaCriteriaQueryContext<?, ?> context) {
 
-		return context;
-	}
-
-	private void augmentPermission(JpaCriteriaQueryContext<?, ?> context, String permissionType) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
 		if (authentication == null) {
-			return;
+			return context;
 		}
 
 		CriteriaQuery<?> criteriaQuery = context.getQuery();
 		CriteriaBuilder builder = context.getCriteriaBuilder();
+		JpaEntityInformation<?, ?> entityInformation = context.getEntityInformation();
 
 		// Assume "select d from Domain d where …"
 		Root<?> root = context.getRoot();
@@ -56,13 +61,12 @@ public class AclQueryAugmentor
 		Root<Permission> permission = criteriaQuery.from(Permission.class);
 
 		// Adds "p.permission = 'read'"
-		Predicate hasReadPermission = builder.equal(permission.get("permission"), permissionType);
+		Predicate hasReadPermission = builder.equal(permission.get("permission"), getRequiredPermission(context.getMode()));
 
-		SingularAttribute<?, Object> idAttribute = root.getModel().getId(Object.class);
-		String idName = idAttribute.getName();
-		Predicate isDomainPermission = builder.equal(root.get(idName), permission.get("domainId"));
-		
-		Predicate isDomainType = builder.equal(permission.get("domainType"), root.getJavaType().getName());
+		SingularAttribute<?, ?> idAttribute = entityInformation.getIdAttribute();
+		Predicate isDomainPermission = builder.equal(root.get(idAttribute.getName()), permission.get("domainId"));
+
+		Predicate isDomainType = builder.equal(permission.get("domainType"), entityInformation.getJavaType().getName());
 
 		// Adds "p.username = $authentication.name"
 		Predicate isUserPermission = builder.equal(permission.get("username"), authentication.getName());
@@ -72,13 +76,17 @@ public class AclQueryAugmentor
 
 		Predicate restriction = criteriaQuery.getRestriction();
 		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
-		
+
+		return context;
 	}
 
-	@Override
-	public JpaUpdateContext<?> augmentUpdate(JpaUpdateContext<?> context, MethodMetadata methodMetadata) {
-		// FIXME Would be nice if I could do this by simply changing augmentPermission first argument type to common interface or class!
-//		augmentPermission(context, "write");
-		return context;
+	private static String getRequiredPermission(QueryMode mode) {
+
+		switch (mode) {
+			case FOR_DELETE:
+				return "write";
+			default:
+				return "read";
+		}
 	}
 }

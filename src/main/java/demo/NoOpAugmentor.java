@@ -12,10 +12,9 @@ import org.springframework.data.repository.core.EntityMetadata;
  * Demo bug in Spring Data
  * 
  * @author rwinch
- *
  */
 public class NoOpAugmentor
-		implements QueryAugmentor<JpaCriteriaQueryContext<?, ?>, JpaQueryContext, JpaUpdateContext<?>> {
+		implements QueryAugmentor<JpaCriteriaQueryContext<?, ?>, JpaQueryContext, JpaUpdateContext<?, ?>> {
 
 	@Override
 	public boolean supports(MethodMetadata method, QueryContext.QueryMode queryMode, EntityMetadata<?> entityMetadata) {
@@ -34,7 +33,7 @@ public class NoOpAugmentor
 	}
 
 	@Override
-	public JpaUpdateContext<?> augmentUpdate(JpaUpdateContext<?> update, MethodMetadata methodMetadata) {
+	public JpaUpdateContext<?, ?> augmentUpdate(JpaUpdateContext<?, ?> update, MethodMetadata methodMetadata) {
 		return update;
 	}
 }
