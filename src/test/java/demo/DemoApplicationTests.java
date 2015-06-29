@@ -300,6 +300,18 @@ public class DemoApplicationTests {
 		assertThat(results).isEmpty();
 	}
 	
+	/**
+	 * Test for SQL Injection attack. This is only one vector and we should be
+	 * careful to use built in mechanisms for escaping.
+	 */
+	@WithMockUser("user'")
+	@Test
+	public void findAllWithQueryUsernameContainSingleQuote() {
+		List<MyDomain> results = repository.findAllWithQuery();
+
+		assertThat(results).isEmpty();
+	}
+
 	// TODO test modifying a cached object and flushing
 	
 	// TODO Superclass
