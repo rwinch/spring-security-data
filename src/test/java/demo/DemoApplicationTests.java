@@ -302,6 +302,10 @@ public class DemoApplicationTests {
 	
 	// TODO test modifying a cached object and flushing
 	
+	// TODO Superclass
+	
+	// TODO Associations
+
 	// --- helpers
 	
 	@SafeVarargs
