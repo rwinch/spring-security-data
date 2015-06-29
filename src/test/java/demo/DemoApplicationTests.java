@@ -42,6 +42,31 @@ public class DemoApplicationTests {
 	}
 	
 	// TODO Save
+	
+	@WithMockUser("rob")
+	@Test
+	public void saveCreateSuccess() {
+		MyDomain toSave = new MyDomain();
+		toSave.setAttribute("saveCreateSuccess");
+
+		MyDomain saved = repository.save(toSave);
+		assertThat(unaugmentedRepository.findOne(saved.getId())).isNotNull();
+	}
+
+	/**
+	 * No way to intercept a Save since SimpleJpaRepository does not use
+	 * QueryExecutor
+	 */
+	@WithMockUser("luke")
+	@Test
+	public void saveCreateNoPermission() {
+		MyDomain toSave = new MyDomain();
+		toSave.setAttribute("saveCreateNoPermission");
+
+		// TODO not sure how this should fail saved == null || just null id || exception
+		MyDomain saved = repository.save(toSave);
+		assertThat(unaugmentedRepository.findOne(saved.getId())).isNotNull();
+	}
 
 	// findOne(Long)
 	
@@ -313,7 +338,7 @@ public class DemoApplicationTests {
 	}
 
 	// TODO test modifying a cached object and flushing
-	
+
 	// TODO Superclass
 	
 	// TODO Associations
