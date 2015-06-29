@@ -22,6 +22,24 @@ public class AclQueryAugmentor<T> extends
 
 	/* 
 	 * (non-Javadoc)
+	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareNativeQuery(org.springframework.data.repository.augment.QueryContext, java.lang.annotation.Annotation)
+	 */
+	@Override
+	protected JpaQueryContext prepareNativeQuery(JpaQueryContext context, Acled annotation) {
+
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+		if (authentication == null) {
+			return context;
+		}
+
+		return context.augment("Permission p",
+				String.format("{alias}.id = p.domainId and p.permission = '%s' and p.domainType = '%s' and p.username = '%s'",
+						getRequiredPermission(context.getMode()), MyDomain.class.getName(), authentication.getName()));
+	}
+
+	/* 
+	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareQuery(org.springframework.data.repository.augment.QueryContext, java.lang.annotation.Annotation)
 	 */
 	@Override
