@@ -38,7 +38,7 @@ public class DemoApplicationTests {
 	
 	@Before
 	public void setup() {
-		repository = createAugmentedFactory(MyDomainRepository.class, new AclQueryAugmentor());
+		repository = createAugmentedFactory(MyDomainRepository.class, new AclQueryAugmentor<Object>());
 	}
 	
 	// TODO Save
