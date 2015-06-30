@@ -60,12 +60,17 @@ public class DemoApplicationTests {
 	@WithMockUser("luke")
 	@Test
 	public void saveCreateNoPermission() {
+
+		long before = unaugmentedRepository.count();
+
 		MyDomain toSave = new MyDomain();
 		toSave.setAttribute("saveCreateNoPermission");
 
 		// TODO not sure how this should fail saved == null || just null id || exception
-		MyDomain saved = repository.save(toSave);
-		assertThat(unaugmentedRepository.findOne(saved.getId())).isNotNull();
+		repository.save(toSave);
+
+		assertThat(unaugmentedRepository.count()).isEqualTo(before);
+		assertThat(toSave.getId()).isNull();
 	}
 
 	@WithMockUser("rob")
