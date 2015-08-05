@@ -30,7 +30,7 @@ import org.springframework.util.StringUtils;
 public class AclQueryAugmentor<T> extends
 		AnnotationBasedQueryAugmentor<Acled, JpaCriteriaQueryContext<?, ?>, JpaQueryContext, JpaUpdateContext<T, ?>> {
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareNativeQuery(org.springframework.data.repository.augment.QueryContext, java.lang.annotation.Annotation)
 	 */
@@ -51,7 +51,7 @@ public class AclQueryAugmentor<T> extends
 		return context.augment("Permission p", clause.toString(), clause.getParameters());
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareQuery(org.springframework.data.repository.augment.QueryContext, java.lang.annotation.Annotation)
 	 */
@@ -60,7 +60,7 @@ public class AclQueryAugmentor<T> extends
 		return augmentPermission(context);
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor#prepareUpdate(org.springframework.data.repository.augment.UpdateContext, java.lang.annotation.Annotation)
 	 */
@@ -129,7 +129,7 @@ public class AclQueryAugmentor<T> extends
 	}
 
 	private WhereClause getIdGuard(String identifierProperty) {
-		return new WhereClause(String.format("{alias.%s = p.domainId", identifierProperty));
+		return new WhereClause(String.format("alias.%s = p.domainId", identifierProperty));
 	}
 
 	private WhereClause getPermissionGuard(Class<?> domainType, QueryMode mode, Authentication authentication) {
@@ -193,7 +193,7 @@ public class AclQueryAugmentor<T> extends
 			return "where ".concat(toString());
 		}
 
-		/* 
+		/*
 		 * (non-Javadoc)
 		 * @see java.lang.Object#toString()
 		 */
