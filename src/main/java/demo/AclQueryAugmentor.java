@@ -46,7 +46,7 @@ public class AclQueryAugmentor<T> extends
 		JpaEntityInformation<?, ?> entityInformation = context.getEntityInformation();
 
 		WhereClause clause = getIdGuard(entityInformation.getIdAttribute().getName())
-				.and(getPermissionGuard(getClass(), context.getMode(), authentication));
+				.and(getPermissionGuard(entityInformation.getJavaType(), context.getMode(), authentication));
 
 		return context.augment("Permission p", clause.toString(), clause.getParameters());
 	}
