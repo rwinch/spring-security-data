@@ -129,7 +129,7 @@ public class AclQueryAugmentor<T> extends
 	}
 
 	private WhereClause getIdGuard(String identifierProperty) {
-		return new WhereClause(String.format("alias.%s = p.domainId", identifierProperty));
+		return new WhereClause(String.format("{alias}.%s = p.domainId", identifierProperty));
 	}
 
 	private WhereClause getPermissionGuard(Class<?> domainType, QueryMode mode, Authentication authentication) {
