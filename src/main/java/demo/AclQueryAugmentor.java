@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,6 +24,7 @@ import org.springframework.data.jpa.repository.support.QueryExecutor;
 import org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor;
 import org.springframework.data.repository.augment.QueryContext.QueryMode;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
@@ -73,21 +75,39 @@ public class AclQueryAugmentor<T> extends
 			return context;
 		}
 
-		if (context.isNewEntity()) {
-
-			WhereClause whereClause = getPermissionGuard(context.getEntity().getClass(), QueryMode.FOR_UPDATE,
-					authentication);
-
-			boolean result = context.getQueryExecutor()
-					.execute("select count(p) > 0 from Permission p " + whereClause.toWhereString(), whereClause.getParameters());
-
-			return result ? context : null;
-		}
-
-		QueryMode mode = context.getMode().equals(UpdateMode.DELETE) ? QueryMode.FOR_DELETE : QueryMode.FOR_UPDATE;
 		QueryExecutor<T, ?> queryExecutor = context.getQueryExecutor();
 
-		return queryExecutor.executeCountByIdFor(context.getEntity(), mode) == 0L ? null : context;
+		return queryExecutor.doWithFlushDisabled(new Callable<JpaUpdateContext<T, ?>>() {
+
+			@Override
+			public JpaUpdateContext<T, ?> call() throws Exception {
+
+				if (context.isNewEntity()) {
+
+					WhereClause whereClause = getPermissionGuard(context.getEntity().getClass(), QueryMode.FOR_UPDATE,
+							authentication);
+
+					boolean result = queryExecutor.execute("select count(p) > 0 from Permission p " + whereClause.toWhereString(),
+							whereClause.getParameters());
+
+					if (!result) {
+						throw new AccessDeniedException(
+								String.format("Insufficient permissions to create entity %s", context.getEntity()));
+					}
+
+					return result ? context : null;
+				}
+
+				QueryMode mode = context.getMode().equals(UpdateMode.DELETE) ? QueryMode.FOR_DELETE : QueryMode.FOR_UPDATE;
+
+				if (queryExecutor.executeCountByIdFor(context.getEntity(), mode) == 0L) {
+					throw new AccessDeniedException(
+							String.format("Insufficient permissions to create entity %s", context.getEntity()));
+				}
+
+				return context;
+			}
+		});
 	}
 
 	private static JpaCriteriaQueryContext<?, ?> augmentPermission(JpaCriteriaQueryContext<?, ?> context) {

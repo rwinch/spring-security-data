@@ -1,14 +1,15 @@
 package demo;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.persistence.EntityManager;
-import javax.transaction.Transactional;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,33 +17,34 @@ import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.support.DefaultJpaContext;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.data.repository.augment.QueryAugmentor;
 import org.springframework.data.repository.augment.QueryContext;
 import org.springframework.data.repository.augment.UpdateContext;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.transaction.annotation.Transactional;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = DemoApplication.class)
 @Transactional
 public class DemoApplicationTests {
-	@Autowired
-	EntityManager entityManager;
 
-	@Autowired
-	MyDomainRepository unaugmentedRepository;
+	@Autowired EntityManager entityManager;
+	@Autowired MyDomainRepository unaugmentedRepository;
 
 	MyDomainRepository repository;
-
 
 	@Before
 	public void setup() {
 		repository = createAugmentedFactory(MyDomainRepository.class, new AclQueryAugmentor<Object>());
+		AclCheckingEntityListener.context = new DefaultJpaContext(Collections.singleton(entityManager));
 	}
 
 	// save(MyDomain)
@@ -58,8 +60,7 @@ public class DemoApplicationTests {
 	}
 
 	/**
-	 * No way to intercept a Save since SimpleJpaRepository does not use
-	 * QueryExecutor
+	 * No way to intercept a Save since SimpleJpaRepository does not use QueryExecutor
 	 */
 	@WithMockUser("luke")
 	@Test
@@ -70,11 +71,13 @@ public class DemoApplicationTests {
 		MyDomain toSave = new MyDomain();
 		toSave.setAttribute("saveCreateNoPermission");
 
-		// TODO not sure how this should fail saved == null || just null id || exception
-		repository.save(toSave);
-
-		assertThat(unaugmentedRepository.count()).isEqualTo(before);
-		assertThat(toSave.getId()).isNull();
+		try {
+			repository.save(toSave);
+			fail("Expected AccessDeniedException!");
+		} catch (AccessDeniedException e) {
+			assertThat(unaugmentedRepository.count()).isEqualTo(before);
+			assertThat(toSave.getId()).isNull();
+		}
 	}
 
 	@WithMockUser("rob")
@@ -84,12 +87,41 @@ public class DemoApplicationTests {
 
 		toUpdate.setAttribute("saveUpdateNoPermission");
 
-		repository.save(toUpdate);
+		try {
+			repository.save(toUpdate);
+			fail("Expected AccessDeniedException!");
+		} catch (AccessDeniedException e) {
 
-		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+			entityManager.clear();
+			assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+		}
+
 	}
 
-	// TODO save (create new, then update, then delete)
+	// test modifying a cached object and flushing
+
+	@WithMockUser("rob")
+	@Test
+	@Ignore // TODO Fix
+	public void changeAttachedInstanceNoPermission() {
+
+		MyDomain toUpdate = repository.findOne(2L);
+
+		toUpdate.setAttribute("saveUpdateNoPermission");
+
+		try {
+
+			entityManager.flush();
+
+			fail("Expected AccessDeniedException!");
+
+		} catch (AccessDeniedException e) {
+
+			entityManager.clear();
+
+			assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+		}
+	}
 
 	@WithMockUser("rob")
 	@Test
@@ -103,7 +135,6 @@ public class DemoApplicationTests {
 		MyDomain findOne = repository.findOne(saved.getId());
 		// since save added an ACL for the current user (rob) this should work
 		assertThat(findOne).isNotNull();
-
 
 		withMockUser("luke");
 
@@ -124,7 +155,11 @@ public class DemoApplicationTests {
 
 		toUpdate.setAttribute("saveUpdateNoPermission");
 
-		repository.saveAndFlush(toUpdate);
+		try {
+			repository.saveAndFlush(toUpdate);
+		} catch (AccessDeniedException e) {}
+
+		entityManager.clear();
 
 		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
@@ -138,7 +173,11 @@ public class DemoApplicationTests {
 
 		toUpdate.setAttribute("saveUpdateNoPermission");
 
-		repository.save(Arrays.asList(toUpdate));
+		try {
+			repository.save(Arrays.asList(toUpdate));
+		} catch (AccessDeniedException e) {}
+
+		entityManager.clear();
 
 		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
@@ -157,7 +196,6 @@ public class DemoApplicationTests {
 		assertThat(repository.findOne(1L)).isNull();
 	}
 
-	// Bug in Spring Data...why noop augmentor produces NonUniqueResultsException
 	@Test
 	public void findOneNoOpAugmentor() {
 		repository = noopAugmentedRepository();
@@ -202,7 +240,7 @@ public class DemoApplicationTests {
 	@WithMockUser("rob")
 	@Test
 	public void findAllIterableRobFindsAllowed() {
-		Iterable<MyDomain> results = repository.findAll(Arrays.asList(1L,2L));
+		Iterable<MyDomain> results = repository.findAll(Arrays.asList(1L, 2L));
 
 		assertThat(results).hasSize(2);
 	}
@@ -210,7 +248,7 @@ public class DemoApplicationTests {
 	@WithMockUser("luke")
 	@Test
 	public void findAllIterableLukeDoesNotFindRobs() {
-		Iterable<MyDomain> results = repository.findAll(Arrays.asList(1L,2L));
+		Iterable<MyDomain> results = repository.findAll(Arrays.asList(1L, 2L));
 
 		assertThat(results).isEmpty();
 	}
@@ -254,16 +292,19 @@ public class DemoApplicationTests {
 	@WithMockUser("rob")
 	@Test
 	public void deleteLongRobFail() {
+
 		long id = 2L;
 
-		repository.delete(id);
-
-		assertThat(unaugmentedRepository.findOne(id)).isNotNull();
+		try {
+			repository.delete(id);
+			fail("Expected AccessDeniedException!");
+		} catch (AccessDeniedException e) {
+			assertThat(unaugmentedRepository.findOne(id)).isNotNull();
+		}
 	}
 
 	/**
-	 * This should behave the same as the standard repository, but fails w/
-	 * NonUniqueResultsException
+	 * This should behave the same as the standard repository, but fails w/ NonUniqueResultsException
 	 */
 	@Test
 	public void deleteLongNoOpAugmentor() {
@@ -298,9 +339,12 @@ public class DemoApplicationTests {
 	public void deleteMyDomainRobFail() {
 		MyDomain toDelete = unaugmentedRepository.findOne(2L);
 
-		repository.delete(toDelete);
-
-		assertThat(unaugmentedRepository.findOne(toDelete.getId())).isNotNull();
+		try {
+			repository.delete(toDelete);
+			fail("Expected AccessDeniedException!");
+		} catch (AccessDeniedException e) {
+			assertThat(unaugmentedRepository.findOne(toDelete.getId())).isNotNull();
+		}
 	}
 
 	// delete(Iterable<MyComain>)
@@ -326,9 +370,12 @@ public class DemoApplicationTests {
 	public void deleteIterableMyDomainRobFail() {
 		MyDomain toDelete = unaugmentedRepository.findOne(2L);
 
-		repository.delete(Arrays.asList(toDelete));
-
-		assertThat(unaugmentedRepository.findOne(toDelete.getId())).isNotNull();
+		try {
+			repository.delete(Arrays.asList(toDelete));
+			fail("Expected AccessDeniedException!");
+		} catch (AccessDeniedException e) {
+			assertThat(unaugmentedRepository.findOne(toDelete.getId())).isNotNull();
+		}
 	}
 
 	// deleteAll()
@@ -341,9 +388,13 @@ public class DemoApplicationTests {
 	public void deleteAllOnlyWriteable() {
 		long size = unaugmentedRepository.count();
 
-		repository.deleteAll();
+		try {
+			repository.deleteAll();
+			fail("Expected AccessDeniedException!");
+		} catch (AccessDeniedException e) {
 
-		assertThat(unaugmentedRepository.count()).isEqualTo(size - 1);
+			assertThat(unaugmentedRepository.count()).isEqualTo(size - 1);
+		}
 	}
 
 	// TODO findAll(Sort)
@@ -401,8 +452,8 @@ public class DemoApplicationTests {
 	}
 
 	/**
-	 * Test for SQL Injection attack. This is only one vector and we should be
-	 * careful to use built in mechanisms for escaping.
+	 * Test for SQL Injection attack. This is only one vector and we should be careful to use built in mechanisms for
+	 * escaping.
 	 */
 	@WithMockUser("user'")
 	@Test
@@ -412,24 +463,17 @@ public class DemoApplicationTests {
 		assertThat(results).isEmpty();
 	}
 
-	// TODO test modifying a cached object and flushing
-
 	// TODO Superclass
 
 	// TODO Associations
 
 	// --- helpers
 
-	private void withMockUser(String username) {
-		User user = new User(username,"password",AuthorityUtils.createAuthorityList("ROLE_USER"));
-		UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(user, user.getPassword(), user.getAuthorities());
-		SecurityContextHolder.getContext().setAuthentication(token);
-	}
-
 	@SafeVarargs
-	private final <T> T createAugmentedFactory(Class<T> repository, QueryAugmentor<? extends QueryContext<?>, ? extends QueryContext<?>, ? extends UpdateContext<?>>... augmentors) {
+	private final <T> T createAugmentedFactory(Class<T> repository,
+			QueryAugmentor<? extends QueryContext<?>, ? extends QueryContext<?>, ? extends UpdateContext<?>>... augmentors) {
 		JpaRepositoryFactory factory = new JpaRepositoryFactory(entityManager);
-		if(augmentors != null) {
+		if (augmentors != null) {
 			factory.setQueryAugmentors(Arrays.asList(augmentors));
 		}
 
@@ -438,9 +482,17 @@ public class DemoApplicationTests {
 
 	/**
 	 * Sometimes adding a no op Augmentor breaks things
+	 * 
 	 * @return
 	 */
 	private MyDomainRepository noopAugmentedRepository() {
 		return createAugmentedFactory(MyDomainRepository.class, new NoOpAugmentor());
+	}
+
+	private void withMockUser(String username) {
+		User user = new User(username, "password", AuthorityUtils.createAuthorityList("ROLE_USER"));
+		UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(user, user.getPassword(),
+				user.getAuthorities());
+		SecurityContextHolder.getContext().setAuthentication(token);
 	}
 }
