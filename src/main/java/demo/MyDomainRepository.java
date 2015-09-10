@@ -11,7 +11,6 @@ import org.springframework.data.jpa.repository.Query;
 @Acled
 public interface MyDomainRepository extends JpaRepository<MyDomain, Long> {
 
-	// Demo Bug in Spring Data
 	@Query("select d from MyDomain d")
 	List<MyDomain> findAllWithQuery();
 }

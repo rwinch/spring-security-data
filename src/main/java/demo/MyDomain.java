@@ -16,6 +16,7 @@
 package demo;
 
 import javax.persistence.Entity;
+import javax.persistence.EntityListeners;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 
@@ -23,11 +24,10 @@ import javax.persistence.Id;
  * @author Rob Winch
  */
 @Entity
+@EntityListeners(AclCheckingEntityListener.class)
 public class MyDomain {
 
-	@GeneratedValue
-	@Id
-	private Long id;
+	@GeneratedValue @Id private Long id;
 
 	private String attribute;
 
