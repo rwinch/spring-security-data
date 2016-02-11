@@ -24,26 +24,29 @@ import javax.persistence.Id;
  * @author Rob Winch
  */
 @Entity
+@Acled
 @EntityListeners(AclCheckingEntityListener.class)
 public class MyDomain {
 
-	@GeneratedValue @Id private Long id;
+    @GeneratedValue
+    @Id
+    private Long id;
 
-	private String attribute;
+    private String attribute;
 
-	public String getAttribute() {
-		return attribute;
-	}
+    public String getAttribute() {
+        return attribute;
+    }
 
-	public void setAttribute(String attribute) {
-		this.attribute = attribute;
-	}
+    public void setAttribute(final String attribute) {
+        this.attribute = attribute;
+    }
 
-	public Long getId() {
-		return id;
-	}
+    public Long getId() {
+        return id;
+    }
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    public void setId(final Long id) {
+        this.id = id;
+    }
 }
