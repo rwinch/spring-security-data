@@ -16,7 +16,6 @@
 package demo;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collections;
 
 import javax.persistence.EntityManager;
@@ -92,9 +91,8 @@ public class AclCheckingEntityListener {
 	}
 
 	/**
-	 * Creates default {@link Permission} instances when an entity is created. TODO: Make sure the default permissions can
-	 * be configured somewhere.
-	 * 
+	 * Creates default {@link Permission} instances when an entity is created.
+	 *
 	 * @param entity
 	 */
 	@PostPersist
@@ -109,9 +107,9 @@ public class AclCheckingEntityListener {
 		EntityManager entityManager = context.getEntityManagerByManagedType(domainType);
 		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
 				entityManager);
+		Acled acled = (Acled) entityInformation.getJavaType().getAnnotation(Acled.class);
 
-		for (String value : Arrays.asList("read", "write")) {
-
+		for (String value : acled.permissionsOnCreate()) {
 			Permission permission = new Permission();
 			permission.setDomainId(entityInformation.getId(entity).toString());
 			permission.setDomainType(domainType.getName());

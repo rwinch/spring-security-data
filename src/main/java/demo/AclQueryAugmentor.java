@@ -233,6 +233,7 @@ public class AclQueryAugmentor<T> extends
 
 		switch (mode) {
 			case FOR_DELETE:
+			case FOR_UPDATE:
 				return "write";
 			default:
 				return "read";
