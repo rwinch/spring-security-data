@@ -24,7 +24,12 @@ import java.lang.annotation.RetentionPolicy;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Acled {
 
-	String[] permissionsOnCreate() default { "read", "write" };
+	/**
+	 * Defaults to mask for read(1) or write(2) = 3
+	 * 
+	 * @return
+	 */
+	int[] permissionBitsOnCreate() default { 1, 2 };
 
 	String guard() default "";
 }

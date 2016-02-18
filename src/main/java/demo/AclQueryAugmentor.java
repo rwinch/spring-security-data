@@ -25,6 +25,7 @@ import org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor
 import org.springframework.data.repository.augment.QueryContext.QueryMode;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
@@ -50,7 +51,7 @@ public class AclQueryAugmentor<T> extends
 		WhereClause clause = getIdGuard(entityInformation.getIdAttribute().getName())
 				.and(getPermissionGuard(entityInformation.getJavaType(), context.getMode(), authentication));
 
-		return context.augment("Permission p", clause.toString(), clause.getParameters());
+		return context.augment("AclEntry acl", clause.toString(), clause.getParameters());
 	}
 
 	/*
@@ -87,8 +88,8 @@ public class AclQueryAugmentor<T> extends
 					WhereClause whereClause = getPermissionGuard(context.getEntity().getClass(), QueryMode.FOR_UPDATE,
 							authentication);
 
-					boolean result = queryExecutor.execute("select count(p) > 0 from Permission p " + whereClause.toWhereString(),
-							whereClause.getParameters());
+					boolean result = queryExecutor.execute(
+							"SELECT count(acl) > 0 FROM AclEntry acl " + whereClause.toWhereString(), whereClause.getParameters());
 
 					if (!result) {
 						throw new AccessDeniedException(
@@ -126,21 +127,24 @@ public class AclQueryAugmentor<T> extends
 		Root<?> root = context.getRoot();
 
 		// Adds "from Permission p"
-		Root<Permission> permission = criteriaQuery.from(Permission.class);
+		Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
 
 		// Adds "p.permission = 'read'"
-		Predicate hasReadPermission = builder.equal(permission.get("permission"), getRequiredPermission(context.getMode()));
+		Predicate hasPermission = builder.ge(builder.function("BITAND", Integer.class, aclEntry.get("mask"),
+				builder.literal(getRequiredPermission(context.getMode()))), 1);
 
 		SingularAttribute<?, ?> idAttribute = entityInformation.getIdAttribute();
-		Predicate isDomainPermission = builder.equal(root.get(idAttribute.getName()), permission.get("domainId"));
+		Predicate isDomainPermission = builder.equal(root.get(idAttribute.getName()),
+				aclEntry.get("objectIdentity").get("objectIdIdentity"));
 
-		Predicate isDomainType = builder.equal(permission.get("domainType"), entityInformation.getJavaType().getName());
+		Predicate isDomainType = builder.equal(aclEntry.get("objectIdentity").get("aclClass").get("class_"),
+				entityInformation.getJavaType().getName());
 
 		// Adds "p.username = $authentication.name"
-		Predicate isUserPermission = builder.equal(permission.get("username"), authentication.getName());
+		Predicate isUserPermission = builder.equal(aclEntry.get("sid").get("sid"), authentication.getName());
 
 		// Concatenates atomic predicates
-		Predicate predicate = builder.and(hasReadPermission, isDomainPermission, isUserPermission, isDomainType);
+		Predicate predicate = builder.and(hasPermission, isDomainPermission, isUserPermission, isDomainType);
 
 		Predicate restriction = criteriaQuery.getRestriction();
 		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
@@ -149,14 +153,14 @@ public class AclQueryAugmentor<T> extends
 	}
 
 	private WhereClause getIdGuard(String identifierProperty) {
-		return new WhereClause(String.format("{alias}.%s = p.domainId", identifierProperty));
+		return new WhereClause(String.format("{alias}.%s = acl.objectIdentity.objectIdIdentity", identifierProperty));
 	}
 
 	private WhereClause getPermissionGuard(Class<?> domainType, QueryMode mode, Authentication authentication) {
 
-		WhereClause where = new WhereClause("p.permission = :acl_permission", getRequiredPermission(mode));
-		where = where.and("p.domainType = :acl_domainType", domainType.getName());
-		return where.and("p.username = :acl_username", authentication.getName());
+		WhereClause where = new WhereClause("BITAND(acl.mask, :required_permission) >= 1", getRequiredPermission(mode));
+		where = where.and("acl.objectIdentity.aclClass.class_ = :domainType", domainType.getName());
+		return where.and("acl.sid.sid = :username", authentication.getName());
 	}
 
 	private static class WhereClause {
@@ -229,14 +233,14 @@ public class AclQueryAugmentor<T> extends
 		}
 	}
 
-	private static String getRequiredPermission(QueryMode mode) {
+	private static int getRequiredPermission(QueryMode mode) {
 
 		switch (mode) {
 			case FOR_DELETE:
 			case FOR_UPDATE:
-				return "write";
+				return BasePermission.WRITE.getMask();
 			default:
-				return "read";
+				return BasePermission.READ.getMask();
 		}
 	}
 }

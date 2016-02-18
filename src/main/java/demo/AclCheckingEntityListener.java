@@ -34,6 +34,13 @@ import org.springframework.data.jpa.repository.support.QueryExecutor;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.augment.QueryAugmentationEngine;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
+import org.springframework.security.acls.domain.ObjectIdentityImpl;
+import org.springframework.security.acls.domain.PermissionFactory;
+import org.springframework.security.acls.domain.PrincipalSid;
+import org.springframework.security.acls.model.MutableAcl;
+import org.springframework.security.acls.model.MutableAclService;
+import org.springframework.security.acls.model.Permission;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
@@ -47,8 +54,28 @@ public class AclCheckingEntityListener {
 	// TODO: Use proper dependency injection
 	private AclQueryAugmentor<Object> augmentor = new AclQueryAugmentor<Object>();
 
+	private MutableAclService mutableAclService;
+
+	private PermissionFactory permissionFactory;
+
 	// TODO: Use proper dependency injection
 	public static JpaContext context;
+
+	// TODO Use proper dependency injection
+	public MutableAclService getMutableAclService() {
+		if (null == mutableAclService) {
+			mutableAclService = SpringApplicationContext.getBean(MutableAclService.class);
+		}
+		return mutableAclService;
+	}
+
+	// TODO Use proper dependency injection
+	public PermissionFactory getPermissionFactory() {
+		if (null == permissionFactory) {
+			permissionFactory = SpringApplicationContext.getBean(PermissionFactory.class);
+		}
+		return permissionFactory;
+	}
 
 	@PrePersist
 	@PreUpdate
@@ -99,24 +126,23 @@ public class AclCheckingEntityListener {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void createDefaultAcl(Object entity) {
 
-		if (Permission.class.isInstance(entity)) {
-			return;
-		}
-
 		Class<? extends Object> domainType = entity.getClass();
 		EntityManager entityManager = context.getEntityManagerByManagedType(domainType);
 		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
 				entityManager);
 		Acled acled = (Acled) entityInformation.getJavaType().getAnnotation(Acled.class);
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		MutableAcl acl = getMutableAclService()
+				.createAcl(new ObjectIdentityImpl(domainType, entityInformation.getId(entity)));
 
-		for (String value : acled.permissionsOnCreate()) {
-			Permission permission = new Permission();
-			permission.setDomainId(entityInformation.getId(entity).toString());
-			permission.setDomainType(domainType.getName());
-			permission.setUsername(SecurityContextHolder.getContext().getAuthentication().getName());
-			permission.setPermission(value);
-
-			entityManager.persist(permission);
+		int permissionMask = 0;
+		for (int permissionBit : acled.permissionBitsOnCreate()) {
+			permissionMask |= permissionBit;
 		}
+
+		Permission permission = getPermissionFactory().buildFromMask(permissionMask);
+
+		acl.insertAce(acl.getEntries().size(), permission, new PrincipalSid(authentication.getName()), true);
+		getMutableAclService().updateAcl(acl);
 	}
 }
