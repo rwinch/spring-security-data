@@ -43,7 +43,8 @@ public class DemoApplicationTests {
 
 	@Before
 	public void setup() {
-		repository = createAugmentedFactory(MyDomainRepository.class, new AclQueryAugmentor<Object>());
+		repository = createAugmentedFactory(MyDomainRepository.class, new AclJpaQueryAugmentor<Object>(),
+				new AclQueryDslQueryAugmentor());
 		AclCheckingEntityListener.context = new DefaultJpaContext(Collections.singleton(entityManager));
 	}
 
@@ -93,7 +94,7 @@ public class DemoApplicationTests {
 		} catch (AccessDeniedException e) {
 
 			entityManager.clear();
-			assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+			assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 		}
 
 	}
@@ -119,7 +120,7 @@ public class DemoApplicationTests {
 
 			entityManager.clear();
 
-			assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+			assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 		}
 	}
 
@@ -156,12 +157,12 @@ public class DemoApplicationTests {
 		toUpdate.setAttribute("saveUpdateNoPermission");
 
 		try {
-			repository.saveAndFlush(toUpdate);
+			repository.save(toUpdate);
 		} catch (AccessDeniedException e) {}
 
 		entityManager.clear();
 
-		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+		assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
 
 	// save(Iterable<MyDomain>)
@@ -179,7 +180,7 @@ public class DemoApplicationTests {
 
 		entityManager.clear();
 
-		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+		assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
 
 	// findOne(Long)
@@ -402,7 +403,7 @@ public class DemoApplicationTests {
 	@WithMockUser("rob")
 	@Test
 	public void findAllSortRobOnlyFindsAllowed() {
-		List<MyDomain> results = repository.findAll(new Sort("id"));
+		Iterable<MyDomain> results = repository.findAll(new Sort("id"));
 
 		assertThat(results).hasSize(2);
 	}
@@ -410,7 +411,7 @@ public class DemoApplicationTests {
 	@WithMockUser("luke")
 	@Test
 	public void findAllSortLukeOnlyFindsAllowed() {
-		List<MyDomain> results = repository.findAll(new Sort("id"));
+		Iterable<MyDomain> results = repository.findAll(new Sort("id"));
 
 		assertThat(results).isEmpty();
 	}
@@ -420,7 +421,7 @@ public class DemoApplicationTests {
 	@WithMockUser("rob")
 	@Test
 	public void findAllPageableRobOnlyFindsAllowed() {
-		Page<MyDomain> results = repository.findAll(new PageRequest(0, 10));
+		Page<MyDomain> results = repository.findAll(new PageRequest(0, 1));
 
 		assertThat(results.getTotalElements()).isEqualTo(2);
 	}
@@ -461,6 +462,14 @@ public class DemoApplicationTests {
 		List<MyDomain> results = repository.findAllWithQuery();
 
 		assertThat(results).isEmpty();
+	}
+
+	@WithMockUser("rob")
+	@Test
+	public void findAllWithQueryDslOnlyRobFindsAllowed() {
+		Iterable<MyDomain> results = repository.findAll(QMyDomain.myDomain.id.isNotNull());
+
+		assertThat(results).hasSize(2);
 	}
 
 	// TODO Superclass
