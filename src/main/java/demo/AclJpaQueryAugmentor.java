@@ -130,8 +130,10 @@ public class AclJpaQueryAugmentor<T> extends
 		Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
 
 		// Adds "p.permission = 'read'"
-		Predicate hasPermission = builder.ge(builder.function("BITAND", Integer.class, aclEntry.get("mask"),
-				builder.literal(getRequiredPermission(context.getMode()))), 1);
+
+		Predicate hasPermission = builder.equal(
+				builder.mod(builder.toInteger(builder.quot(aclEntry.get("mask"), getRequiredPermission(context.getMode()))), 2),
+				1);
 
 		SingularAttribute<?, ?> idAttribute = entityInformation.getIdAttribute();
 		Predicate isDomainPermission = builder.equal(root.get(idAttribute.getName()),
@@ -158,7 +160,7 @@ public class AclJpaQueryAugmentor<T> extends
 
 	private WhereClause getPermissionGuard(Class<?> domainType, QueryMode mode, Authentication authentication) {
 
-		WhereClause where = new WhereClause("BITAND(acl.mask, :required_permission) >= 1", getRequiredPermission(mode));
+		WhereClause where = new WhereClause("MOD((acl.mask / :required_permission), 2) = 1", getRequiredPermission(mode));
 		where = where.and("acl.objectIdentity.aclClass.class_ = :domainType", domainType.getName());
 		return where.and("acl.sid.sid = :username", authentication.getName());
 	}

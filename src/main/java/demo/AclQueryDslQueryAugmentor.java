@@ -43,9 +43,7 @@ public class AclQueryDslQueryAugmentor extends
 			return context;
 		}
 
-		Predicate hasPermission = Expressions.numberTemplate(Integer.class, "function('BITAND', {0}, {1})",
-				QAclEntry.aclEntry.mask, Expressions.constant(getRequiredPermission(context.getMode())))
-				.goe(Expressions.constant(1));
+		Predicate hasPermission = QAclEntry.aclEntry.mask.divide(getRequiredPermission(context.getMode())).mod(2).eq(1);
 
 		Predicate matchingDomainType = QAclEntry.aclEntry.objectIdentity.aclClass.class_
 				.eq(context.getRoot().getType().getName());
