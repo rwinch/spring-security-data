@@ -157,7 +157,7 @@ public class DemoApplicationTests {
 		toUpdate.setAttribute("saveUpdateNoPermission");
 
 		try {
-			repository.save(toUpdate);
+			repository.saveAndFlush(toUpdate);
 		} catch (AccessDeniedException e) {}
 
 		entityManager.clear();
