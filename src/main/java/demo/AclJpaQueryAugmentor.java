@@ -93,7 +93,7 @@ public class AclJpaQueryAugmentor<T> extends
 
 					if (!result) {
 						throw new AccessDeniedException(
-								String.format("Insufficient permissions to create entity %s", context.getEntity()));
+								String.format("Insufficient permissions %s entity %s", context.getMode(), context.getEntity()));
 					}
 
 					return result ? context : null;
@@ -103,7 +103,7 @@ public class AclJpaQueryAugmentor<T> extends
 
 				if (queryExecutor.executeCountByIdFor(context.getEntity(), mode) == 0L) {
 					throw new AccessDeniedException(
-							String.format("Insufficient permissions to create entity %s", context.getEntity()));
+							String.format("Insufficient permissions %s entity %s", mode, context.getEntity()));
 				}
 
 				return context;
