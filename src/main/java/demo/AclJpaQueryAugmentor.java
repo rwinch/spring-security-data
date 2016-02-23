@@ -133,6 +133,17 @@ public class AclJpaQueryAugmentor<T> extends
 		});
 	}
 
+	/**
+	 * Gets the permission predicate.
+	 *
+	 * @param criteriaQuery the criteria query
+	 * @param builder the builder
+	 * @param mode the mode
+	 * @param authentication the authentication
+	 * @param domainType the domain type
+	 * @param idPath the id path
+	 * @return the permission predicate
+	 */
 	private Predicate getPermissionPredicate(CriteriaQuery<?> criteriaQuery, CriteriaBuilder builder, QueryMode mode,
 			Authentication authentication, Class<?> domainType, Path<?> idPath) {
 		Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
@@ -235,7 +246,13 @@ public class AclJpaQueryAugmentor<T> extends
 		}
 	}
 
-	private static int getRequiredPermission(QueryMode mode) {
+	/**
+	 * Gets the required permission.
+	 *
+	 * @param mode the mode
+	 * @return the required permission
+	 */
+	private int getRequiredPermission(QueryMode mode) {
 
 		switch (mode) {
 			case FOR_DELETE:
