@@ -12,9 +12,9 @@ import java.util.regex.Pattern;
 
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Path;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
-import javax.persistence.metamodel.SingularAttribute;
 
 import org.springframework.data.jpa.repository.support.JpaCriteriaQueryContext;
 import org.springframework.data.jpa.repository.support.JpaEntityInformation;
@@ -60,7 +60,23 @@ public class AclJpaQueryAugmentor<T> extends
 	 */
 	@Override
 	protected JpaCriteriaQueryContext<?, ?> prepareQuery(JpaCriteriaQueryContext<?, ?> context, Acled annotation) {
-		return augmentPermission(context);
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+		if (authentication == null) {
+			return context;
+		}
+
+		CriteriaQuery<?> criteriaQuery = context.getQuery();
+		CriteriaBuilder builder = context.getCriteriaBuilder();
+		JpaEntityInformation<?, ?> entityInformation = context.getEntityInformation();
+
+		Predicate predicate = getPermissionPredicate(criteriaQuery, builder, context.getMode(), authentication,
+				entityInformation.getJavaType(), context.getRoot().get(entityInformation.getIdAttribute().getName()));
+
+		Predicate restriction = criteriaQuery.getRestriction();
+		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
+
+		return context;
 	}
 
 	/*
@@ -85,18 +101,24 @@ public class AclJpaQueryAugmentor<T> extends
 
 				if (context.isNewEntity()) {
 
-					WhereClause whereClause = getPermissionGuard(context.getEntity().getClass(), QueryMode.FOR_UPDATE,
-							authentication);
+					CriteriaBuilder builder = context.getEntityManager().getCriteriaBuilder();
+					CriteriaQuery<Boolean> criteriaQuery = builder.createQuery(Boolean.class);
+					Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
+					criteriaQuery.select(builder.gt(builder.count(aclEntry), 0));
 
-					boolean result = queryExecutor.execute(
-							"SELECT count(acl) > 0 FROM AclEntry acl " + whereClause.toWhereString(), whereClause.getParameters());
+					Predicate predicate = getPermissionPredicate(criteriaQuery, builder, QueryMode.FOR_UPDATE, authentication,
+							context.getEntity().getClass(), null);
+
+					criteriaQuery.where(predicate);
+
+					Boolean result = context.getEntityManager().createQuery(criteriaQuery).getSingleResult();
 
 					if (!result) {
 						throw new AccessDeniedException(
 								String.format("Insufficient permissions %s entity %s", context.getMode(), context.getEntity()));
 					}
 
-					return result ? context : null;
+					return context;
 				}
 
 				QueryMode mode = context.getMode().equals(UpdateMode.DELETE) ? QueryMode.FOR_DELETE : QueryMode.FOR_UPDATE;
@@ -111,47 +133,25 @@ public class AclJpaQueryAugmentor<T> extends
 		});
 	}
 
-	private static JpaCriteriaQueryContext<?, ?> augmentPermission(JpaCriteriaQueryContext<?, ?> context) {
-
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-		if (authentication == null) {
-			return context;
-		}
-
-		CriteriaQuery<?> criteriaQuery = context.getQuery();
-		CriteriaBuilder builder = context.getCriteriaBuilder();
-		JpaEntityInformation<?, ?> entityInformation = context.getEntityInformation();
-
-		// Assume "select d from Domain d where …"
-		Root<?> root = context.getRoot();
-
-		// Adds "from Permission p"
+	private Predicate getPermissionPredicate(CriteriaQuery<?> criteriaQuery, CriteriaBuilder builder, QueryMode mode,
+			Authentication authentication, Class<?> domainType, Path<?> idPath) {
 		Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
 
-		// Adds "p.permission = 'read'"
+		List<Predicate> predicates = new ArrayList<>();
 
-		Predicate hasPermission = builder.equal(
-				builder.mod(builder.toInteger(builder.quot(aclEntry.get("mask"), getRequiredPermission(context.getMode()))), 2),
-				1);
+		predicates.add(builder
+				.equal(builder.mod(builder.toInteger(builder.quot(aclEntry.get("mask"), getRequiredPermission(mode))), 2), 1));
 
-		SingularAttribute<?, ?> idAttribute = entityInformation.getIdAttribute();
-		Predicate isDomainPermission = builder.equal(root.get(idAttribute.getName()),
-				aclEntry.get("objectIdentity").get("objectIdIdentity"));
+		predicates.add(builder.equal(aclEntry.get("sid").get("sid"), authentication.getName()));
 
-		Predicate isDomainType = builder.equal(aclEntry.get("objectIdentity").get("aclClass").get("class_"),
-				entityInformation.getJavaType().getName());
+		predicates.add(builder.equal(aclEntry.get("objectIdentity").get("aclClass").get("class_"), domainType.getName()));
 
-		// Adds "p.username = $authentication.name"
-		Predicate isUserPermission = builder.equal(aclEntry.get("sid").get("sid"), authentication.getName());
+		if (null != idPath) {
+			predicates.add(builder.equal(idPath, aclEntry.get("objectIdentity").get("objectIdIdentity")));
+		}
 
 		// Concatenates atomic predicates
-		Predicate predicate = builder.and(hasPermission, isDomainPermission, isUserPermission, isDomainType);
-
-		Predicate restriction = criteriaQuery.getRestriction();
-		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
-
-		return context;
+		return builder.and(predicates.toArray(new Predicate[] {}));
 	}
 
 	private WhereClause getIdGuard(String identifierProperty) {
