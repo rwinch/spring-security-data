@@ -121,6 +121,19 @@ public class DemoApplicationTests {
 
 	@WithMockUser("rob")
 	@Test
+	public void changeAttachedInstanceSuccess() {
+
+		MyDomain toUpdate = repository.findOne(1L);
+		toUpdate.setAttribute("saveUpdateSuccess");
+
+		try {
+			entityManager.flush();
+		} catch (AccessDeniedException e) {}
+		assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isEqualTo("saveUpdateSuccess");
+	}
+
+	@WithMockUser("rob")
+	@Test
 	public void createNewReadUpdateDelete() {
 		MyDomain domain = new MyDomain();
 		domain.setAttribute("createNewReadUpdateDelete");
