@@ -3,7 +3,6 @@ package demo;
 import static org.assertj.core.api.Assertions.*;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import javax.persistence.EntityManager;
@@ -17,7 +16,6 @@ import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.repository.support.DefaultJpaContext;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.data.repository.augment.QueryAugmentor;
 import org.springframework.data.repository.augment.QueryContext;
@@ -45,7 +43,6 @@ public class DemoApplicationTests {
 	public void setup() {
 		repository = createAugmentedFactory(MyDomainRepository.class, new AclJpaQueryAugmentor<Object>(),
 				new AclQueryDslQueryAugmentor());
-		AclCheckingEntityListener.context = new DefaultJpaContext(Collections.singleton(entityManager));
 	}
 
 	// save(MyDomain)

@@ -58,8 +58,7 @@ public class AclCheckingEntityListener {
 
 	private PermissionFactory permissionFactory;
 
-	// TODO: Use proper dependency injection
-	public static JpaContext context;
+	private JpaContext context;
 
 	// TODO Use proper dependency injection
 	public MutableAclService getMutableAclService() {
@@ -75,6 +74,14 @@ public class AclCheckingEntityListener {
 			permissionFactory = SpringApplicationContext.getBean(PermissionFactory.class);
 		}
 		return permissionFactory;
+	}
+
+	// TODO: Use proper dependency injection
+	public JpaContext getContext() {
+		if (null == context) {
+			context = SpringApplicationContext.getBean(JpaContext.class);
+		}
+		return context;
 	}
 
 	@PrePersist
@@ -103,11 +110,12 @@ public class AclCheckingEntityListener {
 		} catch (IllegalStateException e) {}
 
 		Class<? extends Object> domainType = entity.getClass();
-		EntityManager entityManager = context.getEntityManagerByManagedType(domainType);
+		EntityManager entityManager = getContext().getEntityManagerByManagedType(domainType);
 		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
 				entityManager);
 
 		QueryAugmentationEngine engine = new QueryAugmentationEngine(Collections.singleton(augmentor));
+
 		QueryExecutor<Object, Serializable> executor = new QueryExecutor<Object, Serializable>(entityInformation,
 				entityManager, engine, null);
 
@@ -127,7 +135,7 @@ public class AclCheckingEntityListener {
 	public void createDefaultAcl(Object entity) {
 
 		Class<? extends Object> domainType = entity.getClass();
-		EntityManager entityManager = context.getEntityManagerByManagedType(domainType);
+		EntityManager entityManager = getContext().getEntityManagerByManagedType(domainType);
 		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
 				entityManager);
 		Acled acled = (Acled) entityInformation.getJavaType().getAnnotation(Acled.class);
