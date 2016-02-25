@@ -45,9 +45,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 public class AclCheckingEntityListener {
 
-	// TODO: Use proper dependency injection
-	private AclJpaQueryAugmentor<Object> augmentor = new AclJpaQueryAugmentor<Object>();
-
 	private MutableAclService mutableAclService;
 
 	private PermissionFactory permissionFactory;

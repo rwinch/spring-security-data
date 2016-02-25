@@ -122,7 +122,7 @@ public class AclRepositoryUtility {
 		});
 
 		if (!result) {
-			throw new AccessDeniedException(String.format("Insufficient permissions %s entity %s", mode, entity));
+			throw new AccessDeniedException(String.format("Insufficient permissions to %s entity %s", mode, entity));
 		}
 	}
 }
