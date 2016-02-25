@@ -2,16 +2,24 @@ package demo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
+import javax.persistence.EntityManager;
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Path;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
 
+import org.springframework.data.jpa.repository.support.JpaEntityInformation;
+import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
+import org.springframework.data.jpa.repository.support.QueryExecutor;
 import org.springframework.data.repository.augment.QueryContext.QueryMode;
+import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * A utility for ACL security with Repositories.
@@ -67,5 +75,54 @@ public class AclRepositoryUtility {
 
 		// Concatenates atomic predicates
 		return builder.and(predicates.toArray(new Predicate[] {}));
+	}
+
+	/**
+	 * Verify acl.
+	 *
+	 * @param entity the entity
+	 * @param mode the mode
+	 * @param entityManager the entity manager
+	 */
+	public static void verifyAcl(Object entity, UpdateMode mode, EntityManager entityManager) {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+		if (authentication == null) {
+			return;
+		}
+
+		CriteriaBuilder builder = entityManager.getCriteriaBuilder();
+		CriteriaQuery<Boolean> criteriaQuery = builder.createQuery(Boolean.class);
+		Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
+		criteriaQuery.select(builder.gt(builder.count(aclEntry), 0));
+
+		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(entity.getClass(),
+				entityManager);
+		Path idPath = null;
+		if (!entityInformation.isNew(entity)) {
+			Root<?> domainEntity = criteriaQuery.from(entityInformation.getJavaType());
+			idPath = domainEntity.get(entityInformation.getIdAttribute());
+			criteriaQuery.where(builder.equal(idPath, entityInformation.getId(entity)));
+		}
+
+		Predicate predicate = AclRepositoryUtility.getPermissionPredicate(criteriaQuery, builder, QueryMode.FOR_UPDATE,
+				authentication, entityInformation.getJavaType(), idPath);
+
+		Predicate restriction = criteriaQuery.getRestriction();
+		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
+
+		QueryExecutor<?, ?> executor = new QueryExecutor<>(entityInformation, entityManager, null, null);
+		Boolean result = executor.<Boolean> doWithFlushDisabled(new Callable<Boolean>() {
+
+			@Override
+			public Boolean call() throws Exception {
+				return entityManager.createQuery(criteriaQuery).getSingleResult();
+			}
+
+		});
+
+		if (!result) {
+			throw new AccessDeniedException(String.format("Insufficient permissions %s entity %s", mode, entity));
+		}
 	}
 }

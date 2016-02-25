@@ -8,7 +8,6 @@ import java.util.List;
 import javax.persistence.EntityManager;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,7 +99,6 @@ public class DemoApplicationTests {
 
 	@WithMockUser("rob")
 	@Test
-	@Ignore // TODO Fix
 	public void changeAttachedInstanceNoPermission() {
 
 		MyDomain toUpdate = repository.findOne(2L);

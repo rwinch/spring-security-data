@@ -15,9 +15,6 @@
  */
 package demo;
 
-import java.io.Serializable;
-import java.util.Collections;
-
 import javax.persistence.EntityManager;
 import javax.persistence.PostPersist;
 import javax.persistence.PrePersist;
@@ -29,10 +26,7 @@ import org.springframework.aop.interceptor.ExposeInvocationInterceptor;
 import org.springframework.data.jpa.repository.JpaContext;
 import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
-import org.springframework.data.jpa.repository.support.JpaUpdateContext;
-import org.springframework.data.jpa.repository.support.QueryExecutor;
 import org.springframework.data.repository.Repository;
-import org.springframework.data.repository.augment.QueryAugmentationEngine;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
 import org.springframework.security.acls.domain.ObjectIdentityImpl;
 import org.springframework.security.acls.domain.PermissionFactory;
@@ -95,7 +89,6 @@ public class AclCheckingEntityListener {
 		verifyAcl(entity, UpdateMode.DELETE);
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void verifyAcl(Object entity, UpdateMode mode) {
 
 		try {
@@ -109,20 +102,7 @@ public class AclCheckingEntityListener {
 
 		} catch (IllegalStateException e) {}
 
-		Class<? extends Object> domainType = entity.getClass();
-		EntityManager entityManager = getContext().getEntityManagerByManagedType(domainType);
-		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
-				entityManager);
-
-		QueryAugmentationEngine engine = new QueryAugmentationEngine(Collections.singleton(augmentor));
-
-		QueryExecutor<Object, Serializable> executor = new QueryExecutor<Object, Serializable>(entityInformation,
-				entityManager, engine, null);
-
-		JpaUpdateContext<Object, Serializable> updateContext = new JpaUpdateContext<Object, Serializable>(entity, mode,
-				entityManager, executor, entityInformation);
-
-		augmentor.prepareUpdate(updateContext, null);
+		AclRepositoryUtility.verifyAcl(entity, mode, getContext().getEntityManagerByManagedType(entity.getClass()));
 	}
 
 	/**
