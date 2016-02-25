@@ -6,8 +6,6 @@ import org.springframework.data.jpa.repository.support.QueryDslJpaQueryContext;
 import org.springframework.data.jpa.repository.support.QueryDslJpaUpdateContext;
 import org.springframework.data.jpa.repository.support.QueryDslQueryContext;
 import org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor;
-import org.springframework.data.repository.augment.QueryContext.QueryMode;
-import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -43,7 +41,8 @@ public class AclQueryDslQueryAugmentor extends
 			return context;
 		}
 
-		Predicate hasPermission = QAclEntry.aclEntry.mask.divide(getRequiredPermission(context.getMode())).mod(2).eq(1);
+		Predicate hasPermission = QAclEntry.aclEntry.mask
+				.divide(AclRepositoryUtility.getRequiredPermission(context.getMode())).mod(2).eq(1);
 
 		Predicate matchingDomainType = QAclEntry.aclEntry.objectIdentity.aclClass.class_
 				.eq(context.getRoot().getType().getName());
@@ -56,23 +55,6 @@ public class AclQueryDslQueryAugmentor extends
 		context.getQuery().from(context.getRoot(), QAclEntry.aclEntry).where(hasPermission, matchingDomainId,
 				matchingDomainType, matchingUser);
 		return context;
-	}
-
-	/**
-	 * Gets the required permission.
-	 *
-	 * @param mode the mode
-	 * @return the required permission
-	 */
-	private static int getRequiredPermission(QueryMode mode) {
-
-		switch (mode) {
-			case FOR_DELETE:
-			case FOR_UPDATE:
-				return BasePermission.WRITE.getMask();
-			default:
-				return BasePermission.READ.getMask();
-		}
 	}
 
 }

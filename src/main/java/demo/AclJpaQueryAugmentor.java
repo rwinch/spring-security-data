@@ -12,7 +12,6 @@ import java.util.regex.Pattern;
 
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
-import javax.persistence.criteria.Path;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
 
@@ -25,7 +24,6 @@ import org.springframework.data.repository.augment.AnnotationBasedQueryAugmentor
 import org.springframework.data.repository.augment.QueryContext.QueryMode;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
@@ -70,8 +68,9 @@ public class AclJpaQueryAugmentor<T> extends
 		CriteriaBuilder builder = context.getCriteriaBuilder();
 		JpaEntityInformation<?, ?> entityInformation = context.getEntityInformation();
 
-		Predicate predicate = getPermissionPredicate(criteriaQuery, builder, context.getMode(), authentication,
-				entityInformation.getJavaType(), context.getRoot().get(entityInformation.getIdAttribute().getName()));
+		Predicate predicate = AclRepositoryUtility.getPermissionPredicate(criteriaQuery, builder, context.getMode(),
+				authentication, entityInformation.getJavaType(),
+				context.getRoot().get(entityInformation.getIdAttribute().getName()));
 
 		Predicate restriction = criteriaQuery.getRestriction();
 		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
@@ -106,8 +105,8 @@ public class AclJpaQueryAugmentor<T> extends
 					Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
 					criteriaQuery.select(builder.gt(builder.count(aclEntry), 0));
 
-					Predicate predicate = getPermissionPredicate(criteriaQuery, builder, QueryMode.FOR_UPDATE, authentication,
-							context.getEntity().getClass(), null);
+					Predicate predicate = AclRepositoryUtility.getPermissionPredicate(criteriaQuery, builder,
+							QueryMode.FOR_UPDATE, authentication, context.getEntity().getClass(), null);
 
 					criteriaQuery.where(predicate);
 
@@ -133,45 +132,14 @@ public class AclJpaQueryAugmentor<T> extends
 		});
 	}
 
-	/**
-	 * Gets the permission predicate.
-	 *
-	 * @param criteriaQuery the criteria query
-	 * @param builder the builder
-	 * @param mode the mode
-	 * @param authentication the authentication
-	 * @param domainType the domain type
-	 * @param idPath the id path
-	 * @return the permission predicate
-	 */
-	private Predicate getPermissionPredicate(CriteriaQuery<?> criteriaQuery, CriteriaBuilder builder, QueryMode mode,
-			Authentication authentication, Class<?> domainType, Path<?> idPath) {
-		Root<AclEntry> aclEntry = criteriaQuery.from(AclEntry.class);
-
-		List<Predicate> predicates = new ArrayList<>();
-
-		predicates.add(builder
-				.equal(builder.mod(builder.toInteger(builder.quot(aclEntry.get("mask"), getRequiredPermission(mode))), 2), 1));
-
-		predicates.add(builder.equal(aclEntry.get("sid").get("sid"), authentication.getName()));
-
-		predicates.add(builder.equal(aclEntry.get("objectIdentity").get("aclClass").get("class_"), domainType.getName()));
-
-		if (null != idPath) {
-			predicates.add(builder.equal(idPath, aclEntry.get("objectIdentity").get("objectIdIdentity")));
-		}
-
-		// Concatenates atomic predicates
-		return builder.and(predicates.toArray(new Predicate[] {}));
-	}
-
 	private WhereClause getIdGuard(String identifierProperty) {
 		return new WhereClause(String.format("{alias}.%s = acl.objectIdentity.objectIdIdentity", identifierProperty));
 	}
 
 	private WhereClause getPermissionGuard(Class<?> domainType, QueryMode mode, Authentication authentication) {
 
-		WhereClause where = new WhereClause("MOD((acl.mask / :required_permission), 2) = 1", getRequiredPermission(mode));
+		WhereClause where = new WhereClause("MOD((acl.mask / :required_permission), 2) = 1",
+				AclRepositoryUtility.getRequiredPermission(mode));
 		where = where.and("acl.objectIdentity.aclClass.class_ = :domainType", domainType.getName());
 		return where.and("acl.sid.sid = :username", authentication.getName());
 	}
@@ -246,20 +214,4 @@ public class AclJpaQueryAugmentor<T> extends
 		}
 	}
 
-	/**
-	 * Gets the required permission.
-	 *
-	 * @param mode the mode
-	 * @return the required permission
-	 */
-	private int getRequiredPermission(QueryMode mode) {
-
-		switch (mode) {
-			case FOR_DELETE:
-			case FOR_UPDATE:
-				return BasePermission.WRITE.getMask();
-			default:
-				return BasePermission.READ.getMask();
-		}
-	}
 }
