@@ -3,13 +3,11 @@ package demo;
 import static org.assertj.core.api.Assertions.*;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import javax.persistence.EntityManager;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +15,6 @@ import org.springframework.boot.test.SpringApplicationConfiguration;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.repository.support.DefaultJpaContext;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.data.repository.augment.QueryAugmentor;
 import org.springframework.data.repository.augment.QueryContext;
@@ -43,8 +40,8 @@ public class DemoApplicationTests {
 
 	@Before
 	public void setup() {
-		repository = createAugmentedFactory(MyDomainRepository.class, new AclQueryAugmentor<Object>());
-		AclCheckingEntityListener.context = new DefaultJpaContext(Collections.singleton(entityManager));
+		repository = createAugmentedFactory(MyDomainRepository.class, new AclJpaQueryAugmentor<Object>(),
+				new AclQueryDslQueryAugmentor());
 	}
 
 	// save(MyDomain)
@@ -93,7 +90,7 @@ public class DemoApplicationTests {
 		} catch (AccessDeniedException e) {
 
 			entityManager.clear();
-			assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+			assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 		}
 
 	}
@@ -102,7 +99,6 @@ public class DemoApplicationTests {
 
 	@WithMockUser("rob")
 	@Test
-	@Ignore // TODO Fix
 	public void changeAttachedInstanceNoPermission() {
 
 		MyDomain toUpdate = repository.findOne(2L);
@@ -119,8 +115,21 @@ public class DemoApplicationTests {
 
 			entityManager.clear();
 
-			assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+			assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 		}
+	}
+
+	@WithMockUser("rob")
+	@Test
+	public void changeAttachedInstanceSuccess() {
+
+		MyDomain toUpdate = repository.findOne(1L);
+		toUpdate.setAttribute("saveUpdateSuccess");
+
+		try {
+			entityManager.flush();
+		} catch (AccessDeniedException e) {}
+		assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isEqualTo("saveUpdateSuccess");
 	}
 
 	@WithMockUser("rob")
@@ -161,7 +170,7 @@ public class DemoApplicationTests {
 
 		entityManager.clear();
 
-		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+		assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
 
 	// save(Iterable<MyDomain>)
@@ -179,7 +188,7 @@ public class DemoApplicationTests {
 
 		entityManager.clear();
 
-		assertThat(unaugmentedRepository.getOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
+		assertThat(unaugmentedRepository.findOne(toUpdate.getId()).getAttribute()).isNotEqualTo("saveUpdateNoPermission");
 	}
 
 	// findOne(Long)
@@ -402,7 +411,7 @@ public class DemoApplicationTests {
 	@WithMockUser("rob")
 	@Test
 	public void findAllSortRobOnlyFindsAllowed() {
-		List<MyDomain> results = repository.findAll(new Sort("id"));
+		Iterable<MyDomain> results = repository.findAll(new Sort("id"));
 
 		assertThat(results).hasSize(2);
 	}
@@ -410,7 +419,7 @@ public class DemoApplicationTests {
 	@WithMockUser("luke")
 	@Test
 	public void findAllSortLukeOnlyFindsAllowed() {
-		List<MyDomain> results = repository.findAll(new Sort("id"));
+		Iterable<MyDomain> results = repository.findAll(new Sort("id"));
 
 		assertThat(results).isEmpty();
 	}
@@ -420,7 +429,7 @@ public class DemoApplicationTests {
 	@WithMockUser("rob")
 	@Test
 	public void findAllPageableRobOnlyFindsAllowed() {
-		Page<MyDomain> results = repository.findAll(new PageRequest(0, 10));
+		Page<MyDomain> results = repository.findAll(new PageRequest(0, 1));
 
 		assertThat(results.getTotalElements()).isEqualTo(2);
 	}
@@ -461,6 +470,14 @@ public class DemoApplicationTests {
 		List<MyDomain> results = repository.findAllWithQuery();
 
 		assertThat(results).isEmpty();
+	}
+
+	@WithMockUser("rob")
+	@Test
+	public void findAllWithQueryDslOnlyRobFindsAllowed() {
+		Iterable<MyDomain> results = repository.findAll(QMyDomain.myDomain.id.isNotNull());
+
+		assertThat(results).hasSize(2);
 	}
 
 	// TODO Superclass

@@ -24,6 +24,7 @@ import javax.persistence.Id;
  * @author Rob Winch
  */
 @Entity
+@Acled
 @EntityListeners(AclCheckingEntityListener.class)
 public class MyDomain {
 

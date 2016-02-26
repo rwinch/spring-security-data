@@ -15,11 +15,6 @@
  */
 package demo;
 
-import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collections;
-
-import javax.persistence.EntityManager;
 import javax.persistence.PostPersist;
 import javax.persistence.PrePersist;
 import javax.persistence.PreRemove;
@@ -27,15 +22,9 @@ import javax.persistence.PreUpdate;
 
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.interceptor.ExposeInvocationInterceptor;
-import org.springframework.data.jpa.repository.JpaContext;
-import org.springframework.data.jpa.repository.support.JpaEntityInformation;
-import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
-import org.springframework.data.jpa.repository.support.JpaUpdateContext;
-import org.springframework.data.jpa.repository.support.QueryExecutor;
 import org.springframework.data.repository.Repository;
-import org.springframework.data.repository.augment.QueryAugmentationEngine;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.acls.model.Permission;
 
 /**
  * A JPA entity listener to make sure permissions are checked for JPA flushes outside a repository invocation. Also
@@ -45,11 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 public class AclCheckingEntityListener {
 
-	// TODO: Use proper dependency injection
-	private AclQueryAugmentor<Object> augmentor = new AclQueryAugmentor<Object>();
-
-	// TODO: Use proper dependency injection
-	public static JpaContext context;
+	static AclJpaHelper aclJpaHelper;
 
 	@PrePersist
 	@PreUpdate
@@ -62,7 +47,6 @@ public class AclCheckingEntityListener {
 		verifyAcl(entity, UpdateMode.DELETE);
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void verifyAcl(Object entity, UpdateMode mode) {
 
 		try {
@@ -76,49 +60,18 @@ public class AclCheckingEntityListener {
 
 		} catch (IllegalStateException e) {}
 
-		Class<? extends Object> domainType = entity.getClass();
-		EntityManager entityManager = context.getEntityManagerByManagedType(domainType);
-		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
-				entityManager);
-
-		QueryAugmentationEngine engine = new QueryAugmentationEngine(Collections.singleton(augmentor));
-		QueryExecutor<Object, Serializable> executor = new QueryExecutor<Object, Serializable>(entityInformation,
-				entityManager, engine, null);
-
-		JpaUpdateContext<Object, Serializable> updateContext = new JpaUpdateContext<Object, Serializable>(entity, mode,
-				entityManager, executor, entityInformation);
-
-		augmentor.prepareUpdate(updateContext, null);
+		aclJpaHelper.verifyAcl(entity, mode);
 	}
 
 	/**
-	 * Creates default {@link Permission} instances when an entity is created. TODO: Make sure the default permissions can
-	 * be configured somewhere.
-	 * 
+	 * Creates default {@link Permission} instances when an entity is created.
+	 *
 	 * @param entity
 	 */
 	@PostPersist
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void createDefaultAcl(Object entity) {
 
-		if (Permission.class.isInstance(entity)) {
-			return;
-		}
-
-		Class<? extends Object> domainType = entity.getClass();
-		EntityManager entityManager = context.getEntityManagerByManagedType(domainType);
-		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
-				entityManager);
-
-		for (String value : Arrays.asList("read", "write")) {
-
-			Permission permission = new Permission();
-			permission.setDomainId(entityInformation.getId(entity).toString());
-			permission.setDomainType(domainType.getName());
-			permission.setUsername(SecurityContextHolder.getContext().getAuthentication().getName());
-			permission.setPermission(value);
-
-			entityManager.persist(permission);
-		}
+		aclJpaHelper.createDefaultAcl(entity);
 	}
 }
