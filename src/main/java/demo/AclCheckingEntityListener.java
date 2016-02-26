@@ -15,7 +15,6 @@
  */
 package demo;
 
-import javax.persistence.EntityManager;
 import javax.persistence.PostPersist;
 import javax.persistence.PrePersist;
 import javax.persistence.PreRemove;
@@ -23,19 +22,9 @@ import javax.persistence.PreUpdate;
 
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.interceptor.ExposeInvocationInterceptor;
-import org.springframework.data.jpa.repository.JpaContext;
-import org.springframework.data.jpa.repository.support.JpaEntityInformation;
-import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.augment.UpdateContext.UpdateMode;
-import org.springframework.security.acls.domain.ObjectIdentityImpl;
-import org.springframework.security.acls.domain.PermissionFactory;
-import org.springframework.security.acls.domain.PrincipalSid;
-import org.springframework.security.acls.model.MutableAcl;
-import org.springframework.security.acls.model.MutableAclService;
 import org.springframework.security.acls.model.Permission;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * A JPA entity listener to make sure permissions are checked for JPA flushes outside a repository invocation. Also
@@ -45,35 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 public class AclCheckingEntityListener {
 
-	private MutableAclService mutableAclService;
-
-	private PermissionFactory permissionFactory;
-
-	private JpaContext context;
-
-	// TODO Use proper dependency injection
-	public MutableAclService getMutableAclService() {
-		if (null == mutableAclService) {
-			mutableAclService = SpringApplicationContext.getBean(MutableAclService.class);
-		}
-		return mutableAclService;
-	}
-
-	// TODO Use proper dependency injection
-	public PermissionFactory getPermissionFactory() {
-		if (null == permissionFactory) {
-			permissionFactory = SpringApplicationContext.getBean(PermissionFactory.class);
-		}
-		return permissionFactory;
-	}
-
-	// TODO: Use proper dependency injection
-	public JpaContext getContext() {
-		if (null == context) {
-			context = SpringApplicationContext.getBean(JpaContext.class);
-		}
-		return context;
-	}
+	static AclJpaHelper aclJpaHelper;
 
 	@PrePersist
 	@PreUpdate
@@ -99,7 +60,7 @@ public class AclCheckingEntityListener {
 
 		} catch (IllegalStateException e) {}
 
-		AclRepositoryUtility.verifyAcl(entity, mode, getContext().getEntityManagerByManagedType(entity.getClass()));
+		aclJpaHelper.verifyAcl(entity, mode);
 	}
 
 	/**
@@ -111,23 +72,6 @@ public class AclCheckingEntityListener {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void createDefaultAcl(Object entity) {
 
-		Class<? extends Object> domainType = entity.getClass();
-		EntityManager entityManager = getContext().getEntityManagerByManagedType(domainType);
-		JpaEntityInformation entityInformation = JpaEntityInformationSupport.getEntityInformation(domainType,
-				entityManager);
-		Acled acled = (Acled) entityInformation.getJavaType().getAnnotation(Acled.class);
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		MutableAcl acl = getMutableAclService()
-				.createAcl(new ObjectIdentityImpl(domainType, entityInformation.getId(entity)));
-
-		int permissionMask = 0;
-		for (int permissionBit : acled.permissionBitsOnCreate()) {
-			permissionMask |= permissionBit;
-		}
-
-		Permission permission = getPermissionFactory().buildFromMask(permissionMask);
-
-		acl.insertAce(acl.getEntries().size(), permission, new PrincipalSid(authentication.getName()), true);
-		getMutableAclService().updateAcl(acl);
+		aclJpaHelper.createDefaultAcl(entity);
 	}
 }

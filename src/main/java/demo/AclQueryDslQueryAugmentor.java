@@ -34,15 +34,15 @@ public class AclQueryDslQueryAugmentor extends
 	 * @param context the context
 	 * @return the query dsl jpa query context
 	 */
-	private static QueryDslJpaQueryContext<?> augmentPermission(QueryDslJpaQueryContext<?> context) {
+	private QueryDslJpaQueryContext<?> augmentPermission(QueryDslJpaQueryContext<?> context) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
 		if (authentication == null) {
 			return context;
 		}
 
-		Predicate hasPermission = QAclEntry.aclEntry.mask
-				.divide(AclRepositoryUtility.getRequiredPermission(context.getMode())).mod(2).eq(1);
+		Predicate hasPermission = QAclEntry.aclEntry.mask.divide(AclJpaHelper.getRequiredPermission(context.getMode()))
+				.mod(2).eq(1);
 
 		Predicate matchingDomainType = QAclEntry.aclEntry.objectIdentity.aclClass.class_
 				.eq(context.getRoot().getType().getName());

@@ -13,6 +13,7 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Predicate;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.repository.support.JpaCriteriaQueryContext;
 import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.JpaQueryContext;
@@ -25,6 +26,8 @@ import org.springframework.util.StringUtils;
 
 public class AclJpaQueryAugmentor<T> extends
 		AnnotationBasedQueryAugmentor<Acled, JpaCriteriaQueryContext<?, ?>, JpaQueryContext, JpaUpdateContext<T, ?>> {
+
+	@Autowired static AclJpaHelper aclJpaHelper;
 
 	/*
 	 * (non-Javadoc)
@@ -63,9 +66,8 @@ public class AclJpaQueryAugmentor<T> extends
 		CriteriaBuilder builder = context.getCriteriaBuilder();
 		JpaEntityInformation<?, ?> entityInformation = context.getEntityInformation();
 
-		Predicate predicate = AclRepositoryUtility.getPermissionPredicate(criteriaQuery, builder, context.getMode(),
-				authentication, entityInformation.getJavaType(),
-				context.getRoot().get(entityInformation.getIdAttribute().getName()));
+		Predicate predicate = aclJpaHelper.getPermissionPredicate(criteriaQuery, builder, context.getMode(), authentication,
+				entityInformation.getJavaType(), context.getRoot().get(entityInformation.getIdAttribute().getName()));
 
 		Predicate restriction = criteriaQuery.getRestriction();
 		criteriaQuery.where(restriction == null ? predicate : builder.and(restriction, predicate));
@@ -80,7 +82,7 @@ public class AclJpaQueryAugmentor<T> extends
 	@Override
 	protected JpaUpdateContext<T, ?> prepareUpdate(JpaUpdateContext<T, ?> context, Acled annotation) {
 
-		AclRepositoryUtility.verifyAcl(context.getEntity(), context.getMode(), context.getEntityManager());
+		aclJpaHelper.verifyAcl(context.getEntity(), context.getMode());
 
 		return context;
 	}
@@ -92,7 +94,7 @@ public class AclJpaQueryAugmentor<T> extends
 	private WhereClause getPermissionGuard(Class<?> domainType, QueryMode mode, Authentication authentication) {
 
 		WhereClause where = new WhereClause("MOD((acl.mask / :required_permission), 2) = 1",
-				AclRepositoryUtility.getRequiredPermission(mode));
+				aclJpaHelper.getRequiredPermission(mode));
 		where = where.and("acl.objectIdentity.aclClass.class_ = :domainType", domainType.getName());
 		return where.and("acl.sid.sid = :username", authentication.getName());
 	}

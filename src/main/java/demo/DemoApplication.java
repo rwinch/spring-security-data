@@ -117,6 +117,11 @@ public class DemoApplication {
 		return new AclAuthorizationStrategyImpl(new SimpleGrantedAuthority("ROLE_ACL_ADMIN"));
 	}
 
+	@Bean
+	public AclJpaHelper aclJpaHelper() {
+		return new AclJpaHelper();
+	}
+
 	public static void main(final String[] args) {
 		SpringApplication.run(DemoApplication.class, args);
 	}
